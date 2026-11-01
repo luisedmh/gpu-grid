@@ -26,5 +26,5 @@ export function useAuth(): AuthState {
 
 /** Page each role lands on after logging in. */
 export function homePathFor(role: Role): string {
-  return role === 'PROVIDER' ? '/providers' : '/new';
+  return role === 'PROVIDER' ? '/machines' : '/new';
 }

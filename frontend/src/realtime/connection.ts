@@ -1,9 +1,10 @@
-import type { Agent } from '../api/agents.ts';
 import type { Job } from '../api/jobs.ts';
 
 /** Messages the backend pushes to browsers over /ws/client. */
 export type RealtimeMessage =
-  { type: 'job-updated'; job: Job } | { type: 'agents-updated'; agents: Agent[] };
+  | { type: 'job-updated'; job: Job }
+  // Some machine of this user connected, disconnected or took a job
+  | { type: 'agents-updated' };
 
 export type ConnectionStatus = 'connecting' | 'online' | 'offline';
 

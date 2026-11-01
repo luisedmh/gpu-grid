@@ -4,9 +4,9 @@ import { RequireAuth } from './auth/RequireAuth.tsx';
 import { AppLayout } from './layout/AppLayout.tsx';
 import { AuthPage } from './pages/AuthPage.tsx';
 import { JobsPage } from './pages/JobsPage.tsx';
+import { MachinesPage } from './pages/MachinesPage.tsx';
 import { NewJobPage } from './pages/NewJobPage.tsx';
 import { NotFoundPage } from './pages/NotFoundPage.tsx';
-import { ProvidersPage } from './pages/ProvidersPage.tsx';
 
 /** Which page is shown for each URL, and who may see it. */
 export default function App() {
@@ -48,10 +48,10 @@ export default function App() {
           }
         />
         <Route
-          path="providers"
+          path="machines"
           element={
             <RequireAuth roles={['PROVIDER', 'ADMIN']}>
-              <ProvidersPage />
+              <MachinesPage />
             </RequireAuth>
           }
         />
