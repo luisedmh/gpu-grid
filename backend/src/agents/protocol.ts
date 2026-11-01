@@ -38,7 +38,14 @@ export type JobResult = Omit<z.infer<typeof resultSchema>, 'type' | 'jobId'>;
 /** Messages the server sends to agents. */
 export type ServerMessage =
   | { type: 'welcome'; machineId: string; name: string }
-  | { type: 'job'; jobId: string; timeoutSeconds: number; binaryPath: string };
+  | {
+      type: 'job';
+      jobId: string;
+      timeoutSeconds: number;
+      binaryPath: string;
+      /** SHA-256 of the binary, so the agent can check it arrived exactly as compiled */
+      binarySha256: string;
+    };
 
 /** Parses a raw message; returns null if it is not valid JSON or not a known message. */
 export function parseAgentMessage(raw: string): AgentMessage | null {

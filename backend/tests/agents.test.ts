@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
@@ -168,6 +169,29 @@ describe('job execution', () => {
     const finished = await prisma.job.findUniqueOrThrow({ where: { id: job.id } });
     expect(finished).toMatchObject({ stdout: 'Result OK', exitCode: 0, durationMs: 420 });
     expect(finished.finishedAt).not.toBeNull();
+  });
+
+  it('sends the SHA-256 of the binary, so the agent can check it', async () => {
+    const job = await createQueuedJob();
+    const agent = await connectNewMachine();
+
+    const assigned = await agent.nextJob();
+
+    const expected = createHash('sha256').update('fake binary').digest('hex');
+    expect(assigned).toMatchObject({ jobId: job.id, binarySha256: expected });
+  });
+
+  it('fails a job whose compiled program is missing, without charging it', async () => {
+    const job = await createQueuedJob();
+    await prisma.job.update({
+      where: { id: job.id },
+      data: { binaryPath: '/nonexistent/program' },
+    });
+    await connectNewMachine();
+
+    await waitFor(async () => (await jobStatus(job.id)) === 'FAILED');
+    const failed = await prisma.job.findUniqueOrThrow({ where: { id: job.id } });
+    expect(failed).toMatchObject({ costCredits: 0, stderr: expect.stringMatching(/not found/) });
   });
 
   it('marks jobs as TIMED_OUT from the reported result', async () => {
