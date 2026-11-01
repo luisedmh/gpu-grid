@@ -69,6 +69,7 @@ export function JobsPage() {
                     <th className="px-4 py-2.5 font-semibold">Job</th>
                     <th className="px-4 py-2.5 font-semibold">Status</th>
                     <th className="px-4 py-2.5 font-semibold">Duration</th>
+                    <th className="px-4 py-2.5 font-semibold">Cost</th>
                     <th className="px-4 py-2.5 font-semibold">Submitted</th>
                   </tr>
                 </thead>
@@ -92,6 +93,9 @@ export function JobsPage() {
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
                         {formatDuration(job.durationMs)}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        {job.costCredits === null ? '—' : job.costCredits}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap text-slate-500">
                         {formatRelativeTime(job.createdAt)}

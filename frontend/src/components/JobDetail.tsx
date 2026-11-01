@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { Link } from 'react-router';
 import { FINAL_STATUSES } from '../api/jobs.ts';
 import { useJob } from '../hooks/useJob.ts';
-import { formatDateTime, formatDuration } from '../lib/format.ts';
+import { formatCredits, formatDateTime, formatDuration } from '../lib/format.ts';
 import { JobStatusBadge } from './JobStatusBadge.tsx';
 
 /** Right-hand panel with everything about one job. */
@@ -58,6 +58,11 @@ export function JobDetail({ jobId }: { jobId: string }) {
           <Info label="Finished" value={formatDateTime(job.finishedAt)} />
           <Info label="Time limit" value={`${job.timeoutSeconds} s`} />
           <Info label="Attempts" value={job.attempts} />
+          <Info
+            label="Cost"
+            value={job.costCredits === null ? 'Not finished' : formatCredits(job.costCredits)}
+          />
+          <Info label="Reserved" value={formatCredits(job.reservedCredits)} />
         </dl>
 
         {job.compilerOutput && (

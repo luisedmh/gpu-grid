@@ -1,8 +1,9 @@
 import { Navigate, Route, Routes } from 'react-router';
-import { homePathFor, useAuth } from './auth/auth-context.ts';
+import { HOME_PATH, useAuth } from './auth/auth-context.ts';
 import { RequireAuth } from './auth/RequireAuth.tsx';
 import { AppLayout } from './layout/AppLayout.tsx';
 import { AuthPage } from './pages/AuthPage.tsx';
+import { CreditsPage } from './pages/CreditsPage.tsx';
 import { JobsPage } from './pages/JobsPage.tsx';
 import { MachinesPage } from './pages/MachinesPage.tsx';
 import { NewJobPage } from './pages/NewJobPage.tsx';
@@ -23,46 +24,19 @@ export default function App() {
         }
       >
         <Route index element={<HomeRedirect />} />
-        <Route
-          path="new"
-          element={
-            <RequireAuth roles={['CLIENT', 'ADMIN']}>
-              <NewJobPage />
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="jobs"
-          element={
-            <RequireAuth roles={['CLIENT', 'ADMIN']}>
-              <JobsPage />
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="jobs/:jobId"
-          element={
-            <RequireAuth roles={['CLIENT', 'ADMIN']}>
-              <JobsPage />
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="machines"
-          element={
-            <RequireAuth roles={['PROVIDER', 'ADMIN']}>
-              <MachinesPage />
-            </RequireAuth>
-          }
-        />
+        <Route path="new" element={<NewJobPage />} />
+        <Route path="jobs" element={<JobsPage />} />
+        <Route path="jobs/:jobId" element={<JobsPage />} />
+        <Route path="machines" element={<MachinesPage />} />
+        <Route path="credits" element={<CreditsPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>
     </Routes>
   );
 }
 
-/** "/" sends each user to the main page of their role. */
+/** "/" sends users to the main page. */
 function HomeRedirect() {
   const { user } = useAuth();
-  return <Navigate to={user ? homePathFor(user.role) : '/login'} replace />;
+  return <Navigate to={user ? HOME_PATH : '/login'} replace />;
 }

@@ -35,6 +35,10 @@ export interface Job {
   stderr: string | null;
   exitCode: number | null;
   durationMs: number | null;
+  /** Credits held when it was submitted: the most it can cost */
+  reservedCredits: number;
+  /** What it finally cost, once finished */
+  costCredits: number | null;
   createdAt: string;
   updatedAt: string;
   startedAt: string | null;
@@ -44,7 +48,15 @@ export interface Job {
 /** Lighter version of a job returned by the list endpoint. */
 export type JobSummary = Pick<
   Job,
-  'id' | 'name' | 'status' | 'exitCode' | 'durationMs' | 'attempts' | 'createdAt' | 'finishedAt'
+  | 'id'
+  | 'name'
+  | 'status'
+  | 'exitCode'
+  | 'durationMs'
+  | 'attempts'
+  | 'costCredits'
+  | 'createdAt'
+  | 'finishedAt'
 >;
 
 export interface JobList {
@@ -60,7 +72,7 @@ export interface NewJob {
 }
 
 export function createJob(job: NewJob) {
-  return request<Pick<Job, 'id' | 'status' | 'createdAt'>>('/api/jobs', {
+  return request<Pick<Job, 'id' | 'status' | 'reservedCredits' | 'createdAt'>>('/api/jobs', {
     method: 'POST',
     body: JSON.stringify(job),
   });

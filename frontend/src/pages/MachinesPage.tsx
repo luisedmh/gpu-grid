@@ -1,9 +1,7 @@
 import { Check, Copy, Cpu, KeyRound, Loader2, Plus, Server, Trash2, X } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
-import { Link } from 'react-router';
 import { errorMessage } from '../api/http.ts';
 import { createMachine, deleteMachine, type Machine } from '../api/machines.ts';
-import { useAuth } from '../auth/auth-context.ts';
 import { PageHeader } from '../components/PageHeader.tsx';
 import { StatCard } from '../components/StatCard.tsx';
 import { useMachines } from '../hooks/useMachines.ts';
@@ -17,8 +15,6 @@ interface NewMachine {
 }
 
 export function MachinesPage() {
-  const { user } = useAuth();
-  const isAdmin = user?.role === 'ADMIN';
   const { machines, error, reload } = useMachines();
   const [adding, setAdding] = useState(false);
   const [created, setCreated] = useState<NewMachine | null>(null);
@@ -45,10 +41,8 @@ export function MachinesPage() {
   return (
     <>
       <PageHeader
-        title={isAdmin ? 'Machines' : 'My machines'}
-        subtitle={
-          isAdmin ? 'Every machine registered on the platform' : 'The GPUs you offer to the grid'
-        }
+        title="My machines"
+        subtitle="The GPUs you offer to the grid. You earn credits for every job they run."
         actions={
           <button
             type="button"
@@ -89,7 +83,6 @@ export function MachinesPage() {
               <MachineCard
                 key={machine.id}
                 machine={machine}
-                showOwner={isAdmin}
                 onDelete={() => handleDelete(machine)}
               />
             ))}
@@ -111,15 +104,7 @@ export function MachinesPage() {
   );
 }
 
-function MachineCard({
-  machine,
-  showOwner,
-  onDelete,
-}: {
-  machine: Machine;
-  showOwner: boolean;
-  onDelete: () => void;
-}) {
+function MachineCard({ machine, onDelete }: { machine: Machine; onDelete: () => void }) {
   const state = !machine.online ? 'offline' : machine.busy ? 'busy' : 'idle';
   const badge = {
     offline: { label: 'Offline', className: 'bg-slate-100 text-slate-500' },
@@ -142,10 +127,7 @@ function MachineCard({
         </div>
         <div className="min-w-0">
           <h2 className="truncate font-semibold">{machine.name}</h2>
-          <p className="text-xs text-slate-500">
-            {seen}
-            {showOwner && ` · ${machine.owner.name}`}
-          </p>
+          <p className="text-xs text-slate-500">{seen}</p>
         </div>
         <span
           className={`ml-auto inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold ${badge.className}`}
@@ -184,20 +166,10 @@ function MachineCard({
         </span>
         {machine.currentJobId && (
           <span>
-            Running{' '}
-            {showOwner ? (
-              <Link
-                to={`/jobs/${machine.currentJobId}`}
-                className="font-mono font-medium text-brand-500 hover:underline"
-              >
-                {machine.currentJobId.slice(0, 8)}
-              </Link>
-            ) : (
-              // The job belongs to a client: providers only see that it is running
-              <span className="font-mono font-medium text-slate-700">
-                {machine.currentJobId.slice(0, 8)}
-              </span>
-            )}
+            Running {/* It may be someone else's job: only show which one it is */}
+            <span className="font-mono font-medium text-slate-700">
+              {machine.currentJobId.slice(0, 8)}
+            </span>
           </span>
         )}
         <button

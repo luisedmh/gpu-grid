@@ -4,7 +4,9 @@ import type { Job } from '../api/jobs.ts';
 export type RealtimeMessage =
   | { type: 'job-updated'; job: Job }
   // Some machine of this user connected, disconnected or took a job
-  | { type: 'agents-updated' };
+  | { type: 'agents-updated' }
+  // The user's balance changed
+  | { type: 'credits-updated'; balance: number };
 
 export type ConnectionStatus = 'connecting' | 'online' | 'offline';
 

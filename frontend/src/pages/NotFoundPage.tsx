@@ -1,10 +1,10 @@
 import { Link } from 'react-router';
-import { homePathFor, useAuth } from '../auth/auth-context.ts';
+import { HOME_PATH, useAuth } from '../auth/auth-context.ts';
 import { PageHeader } from '../components/PageHeader.tsx';
 
 export function NotFoundPage() {
   const { user } = useAuth();
-  const home = user ? homePathFor(user.role) : '/login';
+  const home = user ? HOME_PATH : '/login';
   return (
     <>
       <PageHeader title="Page not found" />
