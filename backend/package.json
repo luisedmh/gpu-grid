@@ -13,7 +13,8 @@
     "db:migrate": "prisma migrate dev",
     "db:generate": "prisma generate",
     "db:studio": "prisma studio",
-    "test:docker": "DOCKER_TESTS=1 vitest run tests/docker-compiler.test.ts"
+    "test:docker": "DOCKER_TESTS=1 vitest run tests/docker-compiler.test.ts",
+    "make-admin": "tsx src/scripts/make-admin.ts"
   },
   "keywords": [],
   "author": "",
