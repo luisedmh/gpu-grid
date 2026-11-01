@@ -5,11 +5,15 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { compileJob, recoverPendingJobs } from '../src/compiler/compile-job.js';
 import type { Compiler } from '../src/compiler/docker-compiler.js';
 import { prisma } from '../src/lib/prisma.js';
+import { createUser, resetDatabase } from './helpers.js';
 
 let jobsDir: string;
 
+let clientId: string;
+
 beforeEach(async () => {
-  await prisma.job.deleteMany();
+  await resetDatabase();
+  clientId = (await createUser()).id;
   jobsDir = await mkdtemp(path.join(tmpdir(), 'gpugrid-jobs-'));
 });
 
@@ -19,7 +23,7 @@ afterAll(async () => {
 });
 
 function createPendingJob(sourceCode = 'int main() { return 0; }') {
-  return prisma.job.create({ data: { name: 'Test job', sourceCode } });
+  return prisma.job.create({ data: { name: 'Test job', sourceCode, clientId } });
 }
 
 /** A fake compiler that answers immediately with a fixed result. */

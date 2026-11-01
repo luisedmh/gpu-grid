@@ -1,9 +1,11 @@
 import express from 'express';
 import type { AgentSummary } from './agents/scheduler.js';
 import type { JobsDeps } from './controllers/jobs.controller.js';
+import { authenticate } from './middleware/auth.js';
 import { errorHandler, notFoundHandler } from './middleware/error-handler.js';
 import { createAgentRouter } from './routes/agent.routes.js';
 import { createAgentsRouter } from './routes/agents.routes.js';
+import { authRouter } from './routes/auth.routes.js';
 import { healthRouter } from './routes/health.routes.js';
 import { createJobsRouter } from './routes/jobs.routes.js';
 
@@ -26,7 +28,11 @@ export function createApp(deps: AppDeps = {}) {
   // Parse JSON bodies; CUDA sources can be large, so allow up to 256 KB
   app.use(express.json({ limit: '256kb' }));
 
+  // Works out who is making each request (from the session cookie)
+  app.use(authenticate);
+
   app.use('/api/health', healthRouter);
+  app.use('/api/auth', authRouter);
   app.use('/api/jobs', createJobsRouter(deps));
   if (deps.listAgents) app.use('/api/agents', createAgentsRouter(deps.listAgents));
   if (deps.agentToken) app.use('/api/agent', createAgentRouter(deps.agentToken));

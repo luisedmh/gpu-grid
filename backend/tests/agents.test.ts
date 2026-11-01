@@ -12,6 +12,7 @@ import { createApp } from '../src/app.js';
 import { routeUpgrades } from '../src/realtime/upgrade.js';
 import { prisma } from '../src/lib/prisma.js';
 import { MAX_ATTEMPTS } from '../src/services/execution.service.js';
+import { createUser, resetDatabase, sessionCookie } from './helpers.js';
 
 const TOKEN = 'test-agent-token';
 
@@ -25,8 +26,13 @@ beforeAll(async () => {
   jobsDir = await mkdtemp(path.join(tmpdir(), 'gpugrid-agents-'));
 });
 
+let clientId: string;
+let providerCookie: string;
+
 beforeEach(async () => {
-  await prisma.job.deleteMany();
+  await resetDatabase();
+  clientId = (await createUser('CLIENT')).id;
+  providerCookie = await sessionCookie(await createUser('PROVIDER'));
   scheduler = new Scheduler();
   const app = createApp({ agentToken: TOKEN, listAgents: () => scheduler.listAgents() });
   server = app.listen(0);
@@ -47,7 +53,7 @@ afterAll(async () => {
 
 /** Creates a compiled job, as if the compiler had just finished. */
 async function createQueuedJob(name = 'Job') {
-  const job = await prisma.job.create({ data: { name, sourceCode: 'int main() {}' } });
+  const job = await prisma.job.create({ data: { name, sourceCode: 'int main() {}', clientId } });
   const binaryPath = path.join(jobsDir, `${job.id}-program`);
   await writeFile(binaryPath, 'fake binary');
   return prisma.job.update({ where: { id: job.id }, data: { status: 'QUEUED', binaryPath } });
@@ -106,7 +112,7 @@ describe('agent connection', () => {
     await connectAgent('provider-1');
     await waitFor(() => scheduler.listAgents().length === 1);
 
-    const response = await fetch(`${baseUrl}/api/agents`);
+    const response = await fetch(`${baseUrl}/api/agents`, { headers: { Cookie: providerCookie } });
     const agents = await response.json();
 
     expect(agents).toMatchObject([{ name: 'provider-1', busy: false }]);
@@ -178,7 +184,7 @@ describe('job execution', () => {
     const agent = await connectAgent();
     await waitFor(() => scheduler.listAgents().length === 1);
     const other = await prisma.job.create({
-      data: { name: 'other', sourceCode: 'x', status: 'RUNNING' },
+      data: { name: 'other', sourceCode: 'x', status: 'RUNNING', clientId },
     });
 
     agent.ws.send(
