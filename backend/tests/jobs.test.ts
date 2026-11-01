@@ -1,4 +1,4 @@
-import { afterAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import request from 'supertest';
 import { createApp } from '../src/app.js';
 import { prisma } from '../src/lib/prisma.js';
@@ -30,6 +30,15 @@ describe('POST /api/jobs', () => {
     expect(stored?.name).toBe(validJob.name);
     expect(stored?.sourceCode).toBe(validJob.sourceCode);
     expect(stored?.timeoutSeconds).toBe(60);
+  });
+
+  it('notifies that a new job was created, so it can be compiled', async () => {
+    const onJobCreated = vi.fn();
+    const appWithHook = createApp({ onJobCreated });
+
+    const response = await request(appWithHook).post('/api/jobs').send(validJob);
+
+    expect(onJobCreated).toHaveBeenCalledWith(response.body.id);
   });
 
   it('accepts a custom timeout', async () => {

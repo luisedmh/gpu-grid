@@ -12,7 +12,8 @@
     "typecheck": "tsc --noEmit",
     "db:migrate": "prisma migrate dev",
     "db:generate": "prisma generate",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "test:docker": "DOCKER_TESTS=1 vitest run tests/docker-compiler.test.ts"
   },
   "keywords": [],
   "author": "",
