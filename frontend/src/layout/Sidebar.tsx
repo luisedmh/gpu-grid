@@ -7,10 +7,12 @@ interface NavItem {
   to: string;
   label: string;
   icon: LucideIcon;
+  /** Only highlight on this exact URL (not on sub-pages such as /jobs/<id>). */
+  end?: boolean;
 }
 
 const navItems: NavItem[] = [
-  { to: '/jobs/new', label: 'New job', icon: Code2 },
+  { to: '/new', label: 'New job', icon: Code2, end: true },
   { to: '/jobs', label: 'My jobs', icon: ListChecks },
   { to: '/providers', label: 'Providers', icon: Cpu },
 ];
@@ -25,11 +27,11 @@ export function Sidebar() {
       </div>
 
       <nav className="flex flex-col gap-1">
-        {navItems.map(({ to, label, icon: Icon }) => (
+        {navItems.map(({ to, label, icon: Icon, end }) => (
           <NavLink
             key={to}
             to={to}
-            end
+            end={end}
             className={({ isActive }) =>
               `flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition-colors ${
                 isActive ? 'bg-white/10 text-white' : 'hover:bg-white/5 hover:text-white'

@@ -10,9 +10,10 @@ export default function App() {
   return (
     <Routes>
       <Route element={<AppLayout />}>
-        <Route index element={<Navigate to="/jobs/new" replace />} />
-        <Route path="jobs/new" element={<NewJobPage />} />
+        <Route index element={<Navigate to="/new" replace />} />
+        <Route path="new" element={<NewJobPage />} />
         <Route path="jobs" element={<JobsPage />} />
+        <Route path="jobs/:jobId" element={<JobsPage />} />
         <Route path="providers" element={<ProvidersPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>
