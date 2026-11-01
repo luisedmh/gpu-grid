@@ -8,9 +8,7 @@ import type { Scheduler } from './scheduler.js';
 
 export const AGENT_WS_PATH = '/ws/agent';
 
-/** WebSocket close codes the agent understands. */
-export const CLOSE_MACHINE_REMOVED = 4001;
-export const CLOSE_REPLACED = 4002;
+export { CLOSE_MACHINE_REMOVED, CLOSE_REPLACED, CLOSE_SUSPENDED } from './protocol.js';
 
 interface AgentServerOptions {
   scheduler: Scheduler;
@@ -22,6 +20,8 @@ interface Machine {
   id: string;
   name: string;
   ownerId: string;
+  verifiedAt: Date | null;
+  suspendedAt: Date | null;
 }
 
 /** Finds the machine that owns a token, or null. */
@@ -30,7 +30,7 @@ export async function findMachineByToken(header: string | undefined): Promise<Ma
   if (!token) return null;
   return prisma.machine.findUnique({
     where: { tokenHash: hashMachineToken(token) },
-    select: { id: true, name: true, ownerId: true },
+    select: { id: true, name: true, ownerId: true, verifiedAt: true, suspendedAt: true },
   });
 }
 
@@ -64,13 +64,10 @@ export function createAgentServer(options: AgentServerOptions): UpgradeHandler {
           connectionId,
           name: machine.name,
           ownerId: machine.ownerId,
+          verified: machine.verifiedAt !== null,
           gpus: message.gpus,
           send,
-          close: (reason) =>
-            ws.close(
-              reason.startsWith('Replaced') ? CLOSE_REPLACED : CLOSE_MACHINE_REMOVED,
-              reason,
-            ),
+          close: (code, reason) => ws.close(code, reason),
         });
         void touchMachine(machine.id);
         console.log(`Machine connected: ${machine.name} (${message.gpus.length} GPU)`);
@@ -103,6 +100,12 @@ export function createAgentServer(options: AgentServerOptions): UpgradeHandler {
       .then((machine) => {
         if (!machine) {
           socket.write('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n');
+          socket.destroy();
+          return;
+        }
+        // A suspended machine stays out until an administrator reinstates it
+        if (machine.suspendedAt) {
+          socket.write('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n');
           socket.destroy();
           return;
         }

@@ -35,6 +35,11 @@ export type GpuInfo = z.infer<typeof gpuSchema>;
 export type AgentMessage = z.infer<typeof agentMessageSchema>;
 export type JobResult = Omit<z.infer<typeof resultSchema>, 'type' | 'jobId'>;
 
+/** WebSocket close codes that tell an agent not to reconnect. */
+export const CLOSE_MACHINE_REMOVED = 4001;
+export const CLOSE_REPLACED = 4002;
+export const CLOSE_SUSPENDED = 4003;
+
 /** Messages the server sends to agents. */
 export type ServerMessage =
   | { type: 'welcome'; machineId: string; name: string }

@@ -11,6 +11,11 @@ const machineFields = {
   tokenPrefix: true,
   createdAt: true,
   lastSeenAt: true,
+  verifiedAt: true,
+  checksPassed: true,
+  checksFailed: true,
+  suspendedAt: true,
+  suspensionReason: true,
   owner: { select: { id: true, name: true, email: true } },
 } as const;
 

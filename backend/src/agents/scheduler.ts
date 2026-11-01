@@ -1,4 +1,10 @@
-import type { GpuInfo, JobResult, ServerMessage } from './protocol.js';
+import {
+  CLOSE_MACHINE_REMOVED,
+  CLOSE_REPLACED,
+  type GpuInfo,
+  type JobResult,
+  type ServerMessage,
+} from './protocol.js';
 import { fileSha256 } from '../lib/file-hash.js';
 import { agentEvents } from '../realtime/agent-events.js';
 import {
@@ -17,12 +23,15 @@ export interface ConnectedAgent {
   name: string;
   ownerId: string;
   gpus: GpuInfo[];
+  /** Has passed a verification job: only verified machines get users' jobs. */
+  verified?: boolean;
   send: (message: ServerMessage) => void;
-  /** Closes the connection, e.g. when the machine is deleted. */
-  close: (reason: string) => void;
+  /** Closes the connection with one of the CLOSE_* codes, e.g. when the machine is deleted. */
+  close: (code: number, reason: string) => void;
 }
 
 interface AgentState extends ConnectedAgent {
+  verified: boolean;
   /** Job this agent is running right now, or null when it is free. */
   currentJobId: string | null;
   connectedAt: Date;
@@ -45,6 +54,12 @@ export interface AgentSummary {
  */
 export class Scheduler {
   private readonly agents = new Map<string, AgentState>();
+
+  /** Called when a machine connects (the verifier uses it to test new machines). */
+  onMachineReady?: (machineId: string) => Promise<void>;
+  /** Called after a machine reports a result (the verifier checks verification jobs). */
+  onJobFinished?: (machineId: string, jobId: string) => Promise<void>;
+
   private dispatching = false;
   private dispatchRequested = false;
 
@@ -52,14 +67,30 @@ export class Scheduler {
     // The same machine connecting again (e.g. after a crash) replaces its old connection
     const previous = this.agents.get(agent.machineId);
     if (previous) {
-      previous.close('Replaced by a new connection from the same machine');
+      previous.close(CLOSE_REPLACED, 'Replaced by a new connection from the same machine');
       if (previous.currentJobId) {
         void releaseJob(previous.currentJobId, 'The provider reconnected while running the job.');
       }
     }
 
-    this.agents.set(agent.machineId, { ...agent, currentJobId: null, connectedAt: new Date() });
+    this.agents.set(agent.machineId, {
+      ...agent,
+      verified: agent.verified ?? false,
+      currentJobId: null,
+      connectedAt: new Date(),
+    });
     this.announce();
+    void this.dispatch();
+    this.onMachineReady?.(agent.machineId).catch((err) =>
+      console.error(`Could not prepare checks for ${agent.name}:`, err),
+    );
+  }
+
+  /** A machine passed its verification: from now on it also gets users' jobs. */
+  markVerified(machineId: string): void {
+    const agent = this.agents.get(machineId);
+    if (!agent) return;
+    agent.verified = true;
     void this.dispatch();
   }
 
@@ -76,9 +107,9 @@ export class Scheduler {
     }
   }
 
-  /** Forces a machine offline (e.g. its owner deleted it). */
-  disconnect(machineId: string, reason: string): void {
-    this.agents.get(machineId)?.close(reason);
+  /** Forces a machine offline (e.g. its owner deleted it, or it was suspended). */
+  disconnect(machineId: string, reason: string, code = CLOSE_MACHINE_REMOVED): void {
+    this.agents.get(machineId)?.close(code, reason);
   }
 
   async handleResult(machineId: string, jobId: string, result: JobResult): Promise<void> {
@@ -89,6 +120,9 @@ export class Scheduler {
     await saveResult(jobId, result);
     agent.currentJobId = null;
     this.announce();
+    await this.onJobFinished?.(machineId, jobId).catch((err) =>
+      console.error(`Could not check the result of job ${jobId}:`, err),
+    );
     void this.dispatch();
   }
 
@@ -131,7 +165,7 @@ export class Scheduler {
 
           let job;
           try {
-            job = await claimNextJob(agent.machineId);
+            job = await claimNextJob(agent.machineId, agent.verified);
           } catch (err) {
             // A problem with one machine must not stop the others from getting work
             console.error(`Could not give a job to ${agent.name}:`, err);
@@ -140,7 +174,8 @@ export class Scheduler {
             }
             continue;
           }
-          if (!job) break;
+          // Nothing for this machine; there may still be work for others (e.g. their checks)
+          if (!job) continue;
 
           // The machine may have disconnected while we were talking to the database
           if (this.agents.get(agent.machineId) !== agent) {

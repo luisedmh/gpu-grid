@@ -8,6 +8,7 @@ import {
   updateUserSchema,
 } from '../schemas/admin.schema.js';
 import * as admin from '../services/admin.service.js';
+import { reinstateMachine } from '../verification/trust.service.js';
 
 /** The administration panel's API. Every route is for administrators only. */
 export function createAdminRouter(scheduler: Scheduler | undefined) {
@@ -51,7 +52,13 @@ export function createAdminRouter(scheduler: Scheduler | undefined) {
     res.status(204).end();
   });
 
-  /** GET /api/admin/jobs — jobs of every user. */
+  /** POST /api/admin/machines/:id/reinstate — lets a suspended machine connect again. */
+  router.post('/machines/:id/reinstate', async (req: Request<{ id: string }>, res: Response) => {
+    await reinstateMachine(req.params.id);
+    res.status(204).end();
+  });
+
+  /** GET /api/admin/jobs — jobs of every user, and verification jobs. */
   router.get('/jobs', async (req: Request, res: Response) => {
     res.json(await admin.listAllJobs(adminJobsQuerySchema.parse(req.query)));
   });
