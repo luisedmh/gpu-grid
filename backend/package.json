@@ -25,6 +25,7 @@
     "dotenv": "^18.0.9",
     "express": "^5.3.0",
     "pg": "^8.23.1",
+    "ws": "^8.22.1",
     "zod": "^4.6.7"
   },
   "devDependencies": {
@@ -33,6 +34,7 @@
     "@types/node": "^26.6.5",
     "@types/pg": "^8.23.1",
     "@types/supertest": "^7.2.1",
+    "@types/ws": "^8.18.2",
     "eslint": "^10.13.0",
     "prisma": "^7.10.1",
     "supertest": "^7.3.1",
