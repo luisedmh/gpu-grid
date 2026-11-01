@@ -125,22 +125,33 @@ describe('real-time job updates', () => {
     expect(stranger).toHaveLength(0);
   });
 
-  it('pushes the list of providers to providers only', async () => {
-    const provider = await connectClient(await sessionCookie(await createUser('PROVIDER')));
+  it('tells each provider only about their own machines', async () => {
+    const owner = await createUser('PROVIDER');
+    const ownerMessages = await connectClient(await sessionCookie(owner));
+    const otherProvider = await connectClient(await sessionCookie(await createUser('PROVIDER')));
     const client = await connectClient(await sessionCookie(await createUser('CLIENT')));
     const scheduler = new Scheduler();
 
     scheduler.addAgent({
-      id: 'agent-1',
+      machineId: 'machine-1',
+      connectionId: 'connection-1',
       name: 'PC-Casa',
+      ownerId: owner.id,
       gpus: [{ name: 'RTX 3060 Ti', memoryMb: 8192, computeCapability: '8.6' }],
       send: () => {},
+      close: () => {},
     });
-    const connected = await waitFor(() => provider.find((m) => m.type === 'agents-updated'));
+    const connected = await waitFor(() => ownerMessages.find((m) => m.type === 'agents-updated'));
     expect(connected).toMatchObject({ agents: [{ name: 'PC-Casa', busy: false }] });
 
-    await scheduler.removeAgent('agent-1');
-    await waitFor(() => provider.some((m) => m.type === 'agents-updated' && m.agents.length === 0));
+    await scheduler.removeAgent('machine-1', 'connection-1');
+    await waitFor(() =>
+      ownerMessages.some((m) => m.type === 'agents-updated' && m.agents.length === 0),
+    );
+    // The other provider may hear that something changed, but never sees this machine
+    expect(otherProvider.every((m) => m.type === 'agents-updated' && m.agents.length === 0)).toBe(
+      true,
+    );
     expect(client).toHaveLength(0);
   });
 

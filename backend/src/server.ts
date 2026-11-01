@@ -10,11 +10,6 @@ import { CLIENT_WS_PATH, createClientServer } from './realtime/client-server.js'
 import { routeUpgrades } from './realtime/upgrade.js';
 import { recoverRunningJobs } from './services/execution.service.js';
 
-if (!config.agentToken) {
-  console.error('AGENT_TOKEN is not set. Add it to backend/.env (see .env.example).');
-  process.exit(1);
-}
-
 if (!config.jwtSecret) {
   console.error('JWT_SECRET is not set. Add it to backend/.env (see .env.example).');
   process.exit(1);
@@ -42,8 +37,7 @@ if (pending.length > 0) console.log(`Recovered ${pending.length} pending job(s)`
 
 const app = createApp({
   onJobCreated: (jobId) => compileQueue.add(jobId),
-  agentToken: config.agentToken,
-  listAgents: () => scheduler.listAgents(),
+  scheduler,
 });
 
 const server = app.listen(config.port, () => {
@@ -52,7 +46,7 @@ const server = app.listen(config.port, () => {
 
 // WebSocket endpoints: providers on /ws/agent, browsers on /ws/client
 routeUpgrades(server, {
-  [AGENT_WS_PATH]: createAgentServer({ token: config.agentToken, scheduler }),
+  [AGENT_WS_PATH]: createAgentServer({ scheduler }),
   [CLIENT_WS_PATH]: createClientServer(),
 });
 

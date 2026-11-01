@@ -2,12 +2,18 @@ import type { GpuInfo, JobResult, ServerMessage } from './protocol.js';
 import { agentEvents } from '../realtime/agent-events.js';
 import { claimNextJob, releaseJob, saveResult } from '../services/execution.service.js';
 
-/** A provider agent currently connected to this server. */
+/** A machine whose agent is connected to this server right now. */
 export interface ConnectedAgent {
-  id: string;
+  /** The machine's id in the database. */
+  machineId: string;
+  /** Identifies this particular connection (a machine may reconnect). */
+  connectionId: string;
   name: string;
+  ownerId: string;
   gpus: GpuInfo[];
   send: (message: ServerMessage) => void;
+  /** Closes the connection, e.g. when the machine is deleted. */
+  close: (reason: string) => void;
 }
 
 interface AgentState extends ConnectedAgent {
@@ -16,9 +22,11 @@ interface AgentState extends ConnectedAgent {
   connectedAt: Date;
 }
 
+/** Live state of a connected machine, as shown to its owner. */
 export interface AgentSummary {
-  id: string;
+  machineId: string;
   name: string;
+  ownerId: string;
   gpus: GpuInfo[];
   busy: boolean;
   currentJobId: string | null;
@@ -26,8 +34,8 @@ export interface AgentSummary {
 }
 
 /**
- * Matches queued jobs with free agents. Agents live in memory: they only exist
- * while their WebSocket connection is open. Jobs live in the database.
+ * Matches queued jobs with free machines. Connected machines live in memory:
+ * they only exist while their WebSocket connection is open. Jobs live in the database.
  */
 export class Scheduler {
   private readonly agents = new Map<string, AgentState>();
@@ -35,15 +43,25 @@ export class Scheduler {
   private dispatchRequested = false;
 
   addAgent(agent: ConnectedAgent): void {
-    this.agents.set(agent.id, { ...agent, currentJobId: null, connectedAt: new Date() });
+    // The same machine connecting again (e.g. after a crash) replaces its old connection
+    const previous = this.agents.get(agent.machineId);
+    if (previous) {
+      previous.close('Replaced by a new connection from the same machine');
+      if (previous.currentJobId) {
+        void releaseJob(previous.currentJobId, 'The provider reconnected while running the job.');
+      }
+    }
+
+    this.agents.set(agent.machineId, { ...agent, currentJobId: null, connectedAt: new Date() });
     this.announce();
     void this.dispatch();
   }
 
-  async removeAgent(agentId: string): Promise<void> {
-    const agent = this.agents.get(agentId);
-    if (!agent) return;
-    this.agents.delete(agentId);
+  /** Called when a connection closes. Ignored if that machine has already reconnected. */
+  async removeAgent(machineId: string, connectionId: string): Promise<void> {
+    const agent = this.agents.get(machineId);
+    if (!agent || agent.connectionId !== connectionId) return;
+    this.agents.delete(machineId);
     this.announce();
 
     if (agent.currentJobId) {
@@ -52,9 +70,14 @@ export class Scheduler {
     }
   }
 
-  async handleResult(agentId: string, jobId: string, result: JobResult): Promise<void> {
-    const agent = this.agents.get(agentId);
-    // An agent may only report the job it was given
+  /** Forces a machine offline (e.g. its owner deleted it). */
+  disconnect(machineId: string, reason: string): void {
+    this.agents.get(machineId)?.close(reason);
+  }
+
+  async handleResult(machineId: string, jobId: string, result: JobResult): Promise<void> {
+    const agent = this.agents.get(machineId);
+    // A machine may only report the job it was given
     if (!agent || agent.currentJobId !== jobId) return;
 
     await saveResult(jobId, result);
@@ -63,24 +86,28 @@ export class Scheduler {
     void this.dispatch();
   }
 
-  listAgents(): AgentSummary[] {
-    return [...this.agents.values()].map(({ id, name, gpus, currentJobId, connectedAt }) => ({
-      id,
-      name,
-      gpus,
-      busy: currentJobId !== null,
-      currentJobId,
-      connectedAt,
-    }));
+  /** Connected machines, all of them or only those of one owner. */
+  listAgents(ownerId?: string): AgentSummary[] {
+    return [...this.agents.values()]
+      .filter((agent) => ownerId === undefined || agent.ownerId === ownerId)
+      .map(({ machineId, name, ownerId, gpus, currentJobId, connectedAt }) => ({
+        machineId,
+        name,
+        ownerId,
+        gpus,
+        busy: currentJobId !== null,
+        currentJobId,
+        connectedAt,
+      }));
   }
 
-  /** Tells whoever is listening (the browsers) that the providers changed. */
+  /** Tells whoever is listening (the browsers) that the connected machines changed. */
   private announce(): void {
     agentEvents.emit('agents-updated', this.listAgents());
   }
 
   /**
-   * Gives a queued job to every free agent. Safe to call at any time:
+   * Gives a queued job to every free machine. Safe to call at any time:
    * if a dispatch is already running, it simply runs once more afterwards.
    */
   async dispatch(): Promise<void> {
@@ -96,11 +123,11 @@ export class Scheduler {
         for (const agent of this.agents.values()) {
           if (agent.currentJobId) continue;
 
-          const job = await claimNextJob();
+          const job = await claimNextJob(agent.machineId);
           if (!job) break;
 
-          // The agent may have disconnected while we were talking to the database
-          if (!this.agents.has(agent.id)) {
+          // The machine may have disconnected while we were talking to the database
+          if (this.agents.get(agent.machineId) !== agent) {
             await releaseJob(job.id, 'The provider disconnected before receiving the job.');
             continue;
           }

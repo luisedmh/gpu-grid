@@ -26,7 +26,26 @@ model User {
   role         Role     @default(CLIENT)
   createdAt    DateTime @default(now())
 
-  jobs Job[]
+  jobs     Job[]
+  machines Machine[]
+}
+
+/// A computer registered by a provider to run jobs on its GPUs.
+model Machine {
+  id          String    @id @default(uuid())
+  name        String
+  /// SHA-256 of the machine's secret token. The token itself is shown only once.
+  tokenHash   String    @unique
+  /// First characters of the token, so the owner can recognise it
+  tokenPrefix String
+  createdAt   DateTime  @default(now())
+  lastSeenAt  DateTime?
+
+  ownerId String
+  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  jobs    Job[]
+
+  @@index([ownerId])
 }
 
 enum JobStatus {
@@ -50,6 +69,10 @@ model Job {
   // Owner
   clientId String
   client   User   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  /// Machine that ran (or is running) the job
+  machineId String?
+  machine   Machine? @relation(fields: [machineId], references: [id], onDelete: SetNull)
   compilerOutput String?
   binaryPath     String?
   attempts   Int     @default(0)

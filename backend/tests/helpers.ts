@@ -2,6 +2,7 @@ import type { Express } from 'express';
 import request from 'supertest';
 import { createSessionToken, SESSION_COOKIE } from '../src/auth/session.js';
 import type { Role } from '../src/generated/prisma/enums.js';
+import { generateMachineToken } from '../src/lib/machine-token.js';
 import { prisma } from '../src/lib/prisma.js';
 
 let counter = 0;
@@ -28,17 +29,27 @@ export async function sessionCookie(user: { id: string; name: string; email: str
 export async function loggedIn(app: Express, role: Role = 'CLIENT') {
   const user = await createUser(role);
   const cookie = await sessionCookie(user);
-  const as = (method: 'get' | 'post', path: string) =>
+  const as = (method: 'get' | 'post' | 'delete', path: string) =>
     request(app)[method](path).set('Cookie', cookie);
   return {
     user,
     cookie,
     get: (path: string) => as('get', path),
     post: (path: string) => as('post', path),
+    delete: (path: string) => as('delete', path),
   };
 }
 
-/** Removes all users, and with them all their jobs. */
+/** Registers a machine for a provider and returns it with its secret token. */
+export async function createMachine(ownerId: string, name = 'test-machine') {
+  const { token, hash, prefix } = generateMachineToken();
+  const machine = await prisma.machine.create({
+    data: { name, ownerId, tokenHash: hash, tokenPrefix: prefix },
+  });
+  return { machine, token };
+}
+
+/** Removes all users, and with them all their jobs and machines. */
 export function resetDatabase() {
   return prisma.$transaction([prisma.job.deleteMany(), prisma.user.deleteMany()]);
 }
