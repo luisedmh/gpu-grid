@@ -11,4 +11,6 @@ export const config = {
   compileTimeoutMs: Number(process.env.COMPILE_TIMEOUT_MS) || 120_000,
   /** How many compilations may run at the same time. */
   compileConcurrency: Number(process.env.COMPILE_CONCURRENCY) || 2,
+  /** Shared secret that provider agents must present to connect. */
+  agentToken: process.env.AGENT_TOKEN ?? '',
 };
