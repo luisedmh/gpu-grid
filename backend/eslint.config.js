@@ -4,7 +4,7 @@ import tseslint from 'typescript-eslint';
 
 export default defineConfig(
   // Generated folders are never linted
-  { ignores: ['dist/', 'coverage/'] },
+  { ignores: ['dist/', 'coverage/', 'src/generated/'] },
   // Recommended rules for JavaScript and TypeScript
   js.configs.recommended,
   tseslint.configs.recommended,

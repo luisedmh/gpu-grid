@@ -1,0 +1,53 @@
+// Prisma schema: the single source of truth for the database structure.
+// After changing it: `npm run db:migrate` (creates a migration) and `npm run db:generate`.
+
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "esm"
+  importFileExtension = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// Lifecycle of a job, from upload to final result.
+enum JobStatus {
+  PENDING        // received, waiting to be compiled
+  COMPILING      // nvcc is running
+  COMPILE_FAILED // nvcc reported errors (final)
+  QUEUED         // compiled, waiting for a free GPU
+  RUNNING        // executing on a provider's GPU
+  COMPLETED      // finished with exit code 0 (final)
+  FAILED         // non-zero exit code or execution error (final)
+  TIMED_OUT      // killed after exceeding its time limit (final)
+}
+
+/// A CUDA program submitted by a client, and everything that happened to it.
+model Job {
+  id             String    @id @default(uuid())
+  name           String
+  sourceCode     String
+  status         JobStatus @default(PENDING)
+  timeoutSeconds Int       @default(60)
+
+  // Compilation
+  compilerOutput String?
+  binaryPath     String?
+
+  // Execution
+  attempts   Int     @default(0)
+  stdout     String?
+  stderr     String?
+  exitCode   Int?
+  durationMs Int?
+
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  startedAt  DateTime?
+  finishedAt DateTime?
+
+  @@index([status])
+  @@index([createdAt])
+}
