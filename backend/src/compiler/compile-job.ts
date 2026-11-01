@@ -1,7 +1,9 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { prisma } from '../lib/prisma.js';
+import { creditEvents } from '../realtime/credit-events.js';
 import { jobEvents } from '../realtime/job-events.js';
+import { settleJob } from '../services/credits.service.js';
 import { BINARY_FILE, SOURCE_FILE, type CompileResult, type Compiler } from './docker-compiler.js';
 
 export interface CompileDeps {
@@ -54,14 +56,19 @@ export async function compileJob(jobId: string, deps: CompileDeps): Promise<void
     });
   } else {
     const message = result.timedOut ? 'Compilation exceeded the time limit.' : '';
-    await prisma.job.update({
-      where: { id: jobId },
-      data: {
-        status: 'COMPILE_FAILED',
-        compilerOutput: [result.output, message].filter(Boolean).join('\n'),
-        finishedAt: new Date(),
-      },
+    // It never reached a GPU, so all its reserved credits go back to the client
+    const changed = await prisma.$transaction(async (tx) => {
+      await tx.job.update({
+        where: { id: jobId },
+        data: {
+          status: 'COMPILE_FAILED',
+          compilerOutput: [result.output, message].filter(Boolean).join('\n'),
+          finishedAt: new Date(),
+        },
+      });
+      return settleJob(tx, jobId, 0);
     });
+    creditEvents.notify(...changed);
   }
   jobEvents.notify(jobId);
 }

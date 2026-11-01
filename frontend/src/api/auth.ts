@@ -1,19 +1,17 @@
 import { request } from './http.ts';
 
-export type Role = 'CLIENT' | 'PROVIDER' | 'ADMIN';
-
+/** Every account can submit jobs and offer machines; some are also administrators. */
 export interface User {
   id: string;
   name: string;
   email: string;
-  role: Role;
+  isAdmin: boolean;
 }
 
 export interface RegisterData {
   name: string;
   email: string;
   password: string;
-  role: 'CLIENT' | 'PROVIDER';
 }
 
 /** Who is logged in, or null if nobody is. */

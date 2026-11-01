@@ -1,5 +1,10 @@
 /** Small helpers to show numbers and dates in a human-friendly way. */
 
+/** "1 credit", "1,250 credits" */
+export function formatCredits(amount: number): string {
+  return `${amount.toLocaleString('en-US')} credit${amount === 1 ? '' : 's'}`;
+}
+
 export function formatDuration(ms: number | null): string {
   if (ms == null) return '—';
   if (ms < 1000) return `${ms} ms`;

@@ -11,15 +11,15 @@ function viewer(req: Request): SessionUser {
   return req.user;
 }
 
-/** Providers manage their machines here. */
+/** Anyone can offer their machines: they are managed here. */
 export function createMachinesRouter(scheduler: Scheduler | undefined) {
   const router = Router();
-  router.use(requireAuth('PROVIDER', 'ADMIN'));
+  router.use(requireAuth());
 
   /** GET /api/machines — my machines and whether they are online. */
   router.get('/', async (req: Request, res: Response) => {
     const user = viewer(req);
-    const live = scheduler?.listAgents(user.role === 'ADMIN' ? undefined : user.id) ?? [];
+    const live = scheduler?.listAgents(user.id) ?? [];
     res.json(await machinesService.listMachines(user, live));
   });
 

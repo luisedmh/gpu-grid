@@ -2,7 +2,7 @@ import 'dotenv/config';
 import { prisma } from '../lib/prisma.js';
 
 /**
- * Gives the ADMIN role to an existing account. Admins cannot sign up from the
+ * Makes an existing account an administrator. Admins cannot sign up from the
  * web on purpose: only someone with access to the server can create one.
  *
  * Usage: npm run make-admin -- someone@example.com
@@ -20,6 +20,6 @@ if (!user) {
   process.exit(1);
 }
 
-await prisma.user.update({ where: { email }, data: { role: 'ADMIN' } });
+await prisma.user.update({ where: { email }, data: { isAdmin: true } });
 console.log(`${user.name} <${email}> is now an administrator. Log in again to apply it.`);
 await prisma.$disconnect();

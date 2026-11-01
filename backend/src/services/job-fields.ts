@@ -14,6 +14,8 @@ export const publicJobFields = {
   stderr: true,
   exitCode: true,
   durationMs: true,
+  reservedCredits: true,
+  costCredits: true,
   createdAt: true,
   updatedAt: true,
   startedAt: true,
@@ -28,6 +30,7 @@ export const jobSummaryFields = {
   exitCode: true,
   durationMs: true,
   attempts: true,
+  costCredits: true,
   createdAt: true,
   finishedAt: true,
 } as const;

@@ -1,5 +1,5 @@
 import { createContext, useContext } from 'react';
-import type { RegisterData, Role, User } from '../api/auth.ts';
+import type { RegisterData, User } from '../api/auth.ts';
 
 export interface AuthState {
   /** The logged-in user, or null. */
@@ -24,7 +24,5 @@ export function useAuth(): AuthState {
   return auth;
 }
 
-/** Page each role lands on after logging in. */
-export function homePathFor(role: Role): string {
-  return role === 'PROVIDER' ? '/machines' : '/new';
-}
+/** Page everyone lands on after logging in. */
+export const HOME_PATH = '/new';

@@ -6,10 +6,10 @@ export function createJobsRouter(deps: JobsDeps) {
   const controller = createJobsController(deps);
   const router = Router();
 
-  // Everyone must be logged in; only clients (and admins) can submit jobs
+  // Every logged-in user can submit jobs and see their own
   router.use(requireAuth());
   router.get('/', controller.list);
-  router.post('/', requireAuth('CLIENT', 'ADMIN'), controller.create);
+  router.post('/', controller.create);
   router.get('/:id', controller.get);
 
   return router;

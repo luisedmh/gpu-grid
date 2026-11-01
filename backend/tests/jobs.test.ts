@@ -88,10 +88,11 @@ describe('POST /api/jobs', () => {
     expect(response.status).toBe(401);
   });
 
-  it('does not let providers submit jobs', async () => {
+  it('lets any account submit jobs, also those that offer machines', async () => {
     const provider = await loggedIn(app, 'PROVIDER');
+    await prisma.user.update({ where: { id: provider.user.id }, data: { balance: 1000 } });
     const response = await provider.post('/api/jobs').send(validJob);
-    expect(response.status).toBe(403);
+    expect(response.status).toBe(201);
   });
 });
 
@@ -179,17 +180,17 @@ describe('GET /api/jobs', () => {
     expect(response.body.details[0].field).toBe('status');
   });
 
-  it("only lists and counts the client's own jobs", async () => {
+  it("only lists and counts the user's own jobs, also for admins", async () => {
     await createJobs();
     const otherClient = await loggedIn(app, 'CLIENT');
     await otherClient.post('/api/jobs').send({ ...validJob, name: 'not mine' });
 
     const mine = await client.get('/api/jobs');
-    const all = await (await loggedIn(app, 'ADMIN')).get('/api/jobs');
+    const adminsOwn = await (await loggedIn(app, 'ADMIN')).get('/api/jobs');
 
     expect(mine.body.jobs).toHaveLength(3);
     expect(mine.body.counts.PENDING).toBe(2);
-    expect(all.body.jobs).toHaveLength(4);
+    expect(adminsOwn.body.jobs).toHaveLength(0);
   });
 });
 

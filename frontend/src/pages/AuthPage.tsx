@@ -1,12 +1,11 @@
-import { Code2, Cpu, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { Link, Navigate, useLocation } from 'react-router';
 import { errorMessage } from '../api/http.ts';
-import { homePathFor, useAuth } from '../auth/auth-context.ts';
+import { HOME_PATH, useAuth } from '../auth/auth-context.ts';
 import { BrandMark } from '../components/BrandMark.tsx';
 
 type Mode = 'login' | 'register';
-type AccountType = 'CLIENT' | 'PROVIDER';
 
 /** Login and sign-up screen, as in the mockups. */
 export function AuthPage({ mode }: { mode: Mode }) {
@@ -17,12 +16,11 @@ export function AuthPage({ mode }: { mode: Mode }) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState<AccountType>('CLIENT');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   // Logged in (already, or just now): go where they were heading, or to their home page
-  if (user) return <Navigate to={from ?? homePathFor(user.role)} replace />;
+  if (user) return <Navigate to={from ?? HOME_PATH} replace />;
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -31,7 +29,7 @@ export function AuthPage({ mode }: { mode: Mode }) {
     try {
       // Once `user` is set, this page re-renders and the redirect above takes over
       if (mode === 'login') await login(email, password);
-      else await register({ name, email, password, role });
+      else await register({ name, email, password });
     } catch (err) {
       setError(errorMessage(err));
       setSubmitting(false);
@@ -85,27 +83,8 @@ export function AuthPage({ mode }: { mode: Mode }) {
           <p className="mt-1 mb-6 text-sm text-slate-500">
             {mode === 'login'
               ? 'Log in to submit jobs or manage your machines.'
-              : 'Choose how you want to use the platform.'}
+              : 'One account to run your code on GPUs and to offer your own.'}
           </p>
-
-          {mode === 'register' && (
-            <div className="mb-5 grid grid-cols-2 gap-3">
-              <RoleCard
-                selected={role === 'CLIENT'}
-                onSelect={() => setRole('CLIENT')}
-                icon={<Code2 className="size-5" />}
-                title="Client"
-                text="I want to run my code"
-              />
-              <RoleCard
-                selected={role === 'PROVIDER'}
-                onSelect={() => setRole('PROVIDER')}
-                icon={<Cpu className="size-5" />}
-                title="Provider"
-                text="I want to offer my GPUs"
-              />
-            </div>
-          )}
 
           <div className="space-y-4">
             {mode === 'register' && (
@@ -189,32 +168,5 @@ function Field({ label, id, children }: { label: string; id: string; children: R
       </label>
       {children}
     </div>
-  );
-}
-
-interface RoleCardProps {
-  selected: boolean;
-  onSelect: () => void;
-  icon: ReactNode;
-  title: string;
-  text: string;
-}
-
-function RoleCard({ selected, onSelect, icon, title, text }: RoleCardProps) {
-  return (
-    <button
-      type="button"
-      onClick={onSelect}
-      aria-pressed={selected}
-      className={`rounded-xl border p-3.5 text-left ${
-        selected
-          ? 'border-2 border-brand-500 bg-brand-50 text-brand-500'
-          : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300'
-      }`}
-    >
-      {icon}
-      <div className="mt-1.5 font-semibold text-slate-900">{title}</div>
-      <div className="text-xs text-slate-500">{text}</div>
-    </button>
   );
 }

@@ -14,7 +14,8 @@
     "db:generate": "prisma generate",
     "db:studio": "prisma studio",
     "test:docker": "DOCKER_TESTS=1 vitest run tests/docker-compiler.test.ts",
-    "make-admin": "tsx src/scripts/make-admin.ts"
+    "make-admin": "tsx src/scripts/make-admin.ts",
+    "add-credits": "tsx src/scripts/add-credits.ts"
   },
   "keywords": [],
   "author": "",

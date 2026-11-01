@@ -1,17 +1,16 @@
 import { Loader2 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router';
-import type { Role } from '../api/auth.ts';
-import { homePathFor, useAuth } from './auth-context.ts';
+import { HOME_PATH, useAuth } from './auth-context.ts';
 
 interface RequireAuthProps {
   children: ReactNode;
-  /** If given, only these roles may see the page. */
-  roles?: Role[];
+  /** Only administrators may see the page. */
+  adminOnly?: boolean;
 }
 
 /** Protects a page: sends visitors to the login page, and users to their home if not allowed. */
-export function RequireAuth({ children, roles }: RequireAuthProps) {
+export function RequireAuth({ children, adminOnly = false }: RequireAuthProps) {
   const { user, loading } = useAuth();
   const location = useLocation();
 
@@ -26,8 +25,8 @@ export function RequireAuth({ children, roles }: RequireAuthProps) {
     // Remember where they were going, to return there after logging in
     return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   }
-  if (roles && !roles.includes(user.role)) {
-    return <Navigate to={homePathFor(user.role)} replace />;
+  if (adminOnly && !user.isAdmin) {
+    return <Navigate to={HOME_PATH} replace />;
   }
   return children;
 }
