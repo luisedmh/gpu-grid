@@ -15,6 +15,13 @@ export interface Machine {
   createdAt: string;
   lastSeenAt: string | null;
   owner: { id: string; name: string; email: string };
+  /** When it first passed a verification job (null: not verified yet) */
+  verifiedAt: string | null;
+  checksPassed: number;
+  checksFailed: number;
+  /** Suspended machines cannot connect until an administrator reinstates them */
+  suspendedAt: string | null;
+  suspensionReason: string | null;
   online: boolean;
   busy: boolean;
   gpus: Gpu[];

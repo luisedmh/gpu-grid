@@ -6,7 +6,7 @@ import type { Gpu } from './machines.ts';
 
 export interface Overview {
   users: number;
-  machines: { registered: number; online: number; busy: number };
+  machines: { registered: number; online: number; busy: number; suspended: number };
   jobs: Record<JobStatus, number>;
   credits: {
     inAccounts: number;
@@ -33,6 +33,11 @@ export interface AdminMachine {
   createdAt: string;
   lastSeenAt: string | null;
   owner: { id: string; name: string; email: string };
+  verifiedAt: string | null;
+  checksPassed: number;
+  checksFailed: number;
+  suspendedAt: string | null;
+  suspensionReason: string | null;
   _count: { jobs: number };
   online: boolean;
   busy: boolean;
@@ -43,12 +48,14 @@ export interface AdminMachine {
 export interface AdminJob {
   id: string;
   name: string;
+  /** CHECK: a verification job made by the platform, with no client */
+  kind: 'CLIENT' | 'CHECK';
   status: JobStatus;
   durationMs: number | null;
   costCredits: number | null;
   attempts: number;
   createdAt: string;
-  client: { id: string; name: string };
+  client: { id: string; name: string } | null;
   machine: { id: string; name: string } | null;
 }
 
@@ -69,6 +76,10 @@ export function setAdmin(userId: string, isAdmin: boolean) {
     method: 'PATCH',
     body: JSON.stringify({ isAdmin }),
   });
+}
+
+export function reinstateMachine(id: string) {
+  return request<null>(`/api/admin/machines/${id}/reinstate`, { method: 'POST' });
 }
 
 export function removeMachine(id: string) {
