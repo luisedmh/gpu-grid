@@ -1,4 +1,12 @@
-import { Code2, Coins, ListChecks, LogOut, Server, type LucideIcon } from 'lucide-react';
+import {
+  Code2,
+  Coins,
+  LayoutDashboard,
+  ListChecks,
+  LogOut,
+  Server,
+  type LucideIcon,
+} from 'lucide-react';
 import { NavLink, useNavigate } from 'react-router';
 import { useAuth } from '../auth/auth-context.ts';
 import { BackendStatus } from '../components/BackendStatus.tsx';
@@ -14,7 +22,12 @@ interface NavItem {
 }
 
 /** Every account can do both things, so the menu is grouped by what you want to do. */
-const navSections: { title: string; items: NavItem[] }[] = [
+interface NavSection {
+  title: string;
+  items: NavItem[];
+}
+
+const navSections: NavSection[] = [
   {
     title: 'Use GPUs',
     items: [
@@ -31,6 +44,12 @@ const navSections: { title: string; items: NavItem[] }[] = [
     items: [{ to: '/credits', label: 'Credits', icon: Coins }],
   },
 ];
+
+/** Only administrators see this section. */
+const adminSection: NavSection = {
+  title: 'Platform',
+  items: [{ to: '/admin', label: 'Administration', icon: LayoutDashboard }],
+};
 
 /** Left navigation bar, as in the mockups. */
 export function Sidebar() {
@@ -51,7 +70,7 @@ export function Sidebar() {
       </div>
 
       <nav className="flex flex-col gap-4">
-        {navSections.map((section) => (
+        {(user?.isAdmin ? [...navSections, adminSection] : navSections).map((section) => (
           <div key={section.title} className="flex flex-col gap-1">
             <div className="px-2.5 pb-0.5 text-[11px] font-semibold tracking-wide text-slate-500 uppercase">
               {section.title}
