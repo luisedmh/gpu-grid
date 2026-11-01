@@ -1,11 +1,19 @@
 import express from 'express';
+import type { AgentSummary } from './agents/scheduler.js';
 import type { JobsDeps } from './controllers/jobs.controller.js';
 import { errorHandler, notFoundHandler } from './middleware/error-handler.js';
+import { createAgentRouter } from './routes/agent.routes.js';
+import { createAgentsRouter } from './routes/agents.routes.js';
 import { healthRouter } from './routes/health.routes.js';
 import { createJobsRouter } from './routes/jobs.routes.js';
 
 /** Everything the app needs from outside. Tests pass fakes; server.ts passes the real ones. */
-export type AppDeps = JobsDeps;
+export interface AppDeps extends JobsDeps {
+  /** Token that provider agents must present. Without it, agent endpoints are disabled. */
+  agentToken?: string;
+  /** Lists connected providers. Without it, /api/agents is disabled. */
+  listAgents?: () => AgentSummary[];
+}
 
 /**
  * Builds and configures the Express application.
@@ -20,6 +28,8 @@ export function createApp(deps: AppDeps = {}) {
 
   app.use('/api/health', healthRouter);
   app.use('/api/jobs', createJobsRouter(deps));
+  if (deps.listAgents) app.use('/api/agents', createAgentsRouter(deps.listAgents));
+  if (deps.agentToken) app.use('/api/agent', createAgentRouter(deps.agentToken));
 
   app.use('/api', notFoundHandler);
   app.use(errorHandler);

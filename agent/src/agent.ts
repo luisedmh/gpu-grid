@@ -1,0 +1,107 @@
+import 'dotenv/config';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import WebSocket from 'ws';
+import { config } from './config.js';
+import { readGpuInfo } from './gpu-info.js';
+import type { AgentMessage, ServerMessage } from './protocol.js';
+import { runBinary } from './runner.js';
+
+if (!config.token) {
+  console.error('AGENT_TOKEN is not set. Add it to agent/.env (see .env.example).');
+  process.exit(1);
+}
+
+const wsUrl = `${config.serverUrl.replace(/^http/, 'ws')}/ws/agent`;
+let reconnectAttempts = 0;
+
+/** Connects to the backend and keeps reconnecting if the connection drops. */
+function connect() {
+  const ws = new WebSocket(wsUrl, {
+    headers: { Authorization: `Bearer ${config.token}` },
+  });
+  const send = (message: AgentMessage) => ws.send(JSON.stringify(message));
+
+  ws.on('open', async () => {
+    reconnectAttempts = 0;
+    const gpus = await readGpuInfo();
+    send({ type: 'hello', name: config.name, gpus });
+    console.log(`Connected to ${config.serverUrl} as "${config.name}"`);
+    gpus.forEach((gpu) =>
+      console.log(`  GPU: ${gpu.name} (${gpu.memoryMb} MB, sm ${gpu.computeCapability})`),
+    );
+  });
+
+  ws.on('message', (data) => {
+    const message = JSON.parse(data.toString()) as ServerMessage;
+    if (message.type === 'job') {
+      void runJob(message, send);
+    }
+  });
+
+  ws.on('close', () => {
+    // Wait longer after each failed attempt (1 s, 2 s, 4 s... up to 30 s)
+    const delay = Math.min(30_000, 1000 * 2 ** reconnectAttempts);
+    reconnectAttempts++;
+    console.log(`Disconnected. Reconnecting in ${delay / 1000} s...`);
+    setTimeout(connect, delay);
+  });
+
+  // The backend answered the connection request with an HTTP error instead of accepting it
+  ws.on('unexpected-response', (_req, res) => {
+    if (res.statusCode === 401) {
+      console.error('The backend rejected the agent token. Check AGENT_TOKEN.');
+      process.exit(1);
+    }
+    console.error(`Unexpected response from the backend: HTTP ${res.statusCode}`);
+    ws.terminate();
+  });
+
+  ws.on('error', (err) => {
+    console.error(`Connection error: ${err.message}`);
+  });
+}
+
+/** Downloads the binary of a job, runs it on the GPU and reports the result. */
+async function runJob(
+  job: Extract<ServerMessage, { type: 'job' }>,
+  send: (message: AgentMessage) => void,
+) {
+  console.log(`Running job ${job.jobId} (limit ${job.timeoutSeconds} s)`);
+  const workDir = await mkdtemp(path.join(tmpdir(), 'gpugrid-agent-'));
+
+  try {
+    const response = await fetch(new URL(job.binaryPath, config.serverUrl), {
+      headers: { Authorization: `Bearer ${config.token}` },
+    });
+    if (!response.ok) throw new Error(`Binary download failed with HTTP ${response.status}`);
+    await writeFile(path.join(workDir, 'program'), Buffer.from(await response.arrayBuffer()), {
+      mode: 0o755,
+    });
+
+    const result = await runBinary({
+      binaryDir: workDir,
+      binaryName: 'program',
+      timeoutMs: job.timeoutSeconds * 1000,
+    });
+    send({ type: 'result', jobId: job.jobId, ...result });
+    console.log(`Job ${job.jobId} finished: exit code ${result.exitCode}, ${result.durationMs} ms`);
+  } catch (err) {
+    const message = (err as Error).message;
+    console.error(`Job ${job.jobId} failed in the agent: ${message}`);
+    send({
+      type: 'result',
+      jobId: job.jobId,
+      exitCode: null,
+      stdout: '',
+      stderr: `Agent error: ${message}`,
+      durationMs: 0,
+      timedOut: false,
+    });
+  } finally {
+    await rm(workDir, { recursive: true, force: true });
+  }
+}
+
+connect();
