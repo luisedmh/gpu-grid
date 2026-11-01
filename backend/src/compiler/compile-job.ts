@@ -1,6 +1,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { prisma } from '../lib/prisma.js';
+import { jobEvents } from '../realtime/job-events.js';
 import { BINARY_FILE, SOURCE_FILE, type CompileResult, type Compiler } from './docker-compiler.js';
 
 export interface CompileDeps {
@@ -19,6 +20,7 @@ export async function compileJob(jobId: string, deps: CompileDeps): Promise<void
     data: { status: 'COMPILING' },
   });
   if (claimed.count === 0) return;
+  jobEvents.notify(jobId);
 
   const job = await prisma.job.findUniqueOrThrow({
     where: { id: jobId },
@@ -61,6 +63,7 @@ export async function compileJob(jobId: string, deps: CompileDeps): Promise<void
       },
     });
   }
+  jobEvents.notify(jobId);
 }
 
 /**

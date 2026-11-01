@@ -5,10 +5,11 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import WebSocket from 'ws';
-import { attachAgentServer } from '../src/agents/agent-server.js';
+import { AGENT_WS_PATH, createAgentServer } from '../src/agents/agent-server.js';
 import type { ServerMessage } from '../src/agents/protocol.js';
 import { Scheduler } from '../src/agents/scheduler.js';
 import { createApp } from '../src/app.js';
+import { routeUpgrades } from '../src/realtime/upgrade.js';
 import { prisma } from '../src/lib/prisma.js';
 import { MAX_ATTEMPTS } from '../src/services/execution.service.js';
 
@@ -29,7 +30,7 @@ beforeEach(async () => {
   scheduler = new Scheduler();
   const app = createApp({ agentToken: TOKEN, listAgents: () => scheduler.listAgents() });
   server = app.listen(0);
-  attachAgentServer(server, { token: TOKEN, scheduler });
+  routeUpgrades(server, { [AGENT_WS_PATH]: createAgentServer({ token: TOKEN, scheduler }) });
   baseUrl = `http://localhost:${(server.address() as AddressInfo).port}`;
 });
 

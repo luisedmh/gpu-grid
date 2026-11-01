@@ -1,16 +1,19 @@
 import { useEffect, useState } from 'react';
 import { listJobs, type JobList } from '../api/jobs.ts';
+import { realtime } from '../realtime/connection.ts';
 
 /**
- * The list of jobs, refreshed every few seconds so states keep moving.
- * (Later we will replace polling with real-time updates over WebSocket.)
+ * The list of jobs, reloaded whenever the backend announces that a job changed.
+ * Several changes in a row (a job compiling, then queued, then running…)
+ * are grouped into a single reload.
  */
-export function useJobList(intervalMs = 3000) {
+export function useJobList() {
   const [data, setData] = useState<JobList | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
+    let pending: ReturnType<typeof setTimeout> | undefined;
 
     const load = async () => {
       try {
@@ -23,13 +26,25 @@ export function useJobList(intervalMs = 3000) {
       }
     };
 
+    const scheduleLoad = () => {
+      clearTimeout(pending);
+      pending = setTimeout(load, 200);
+    };
+
+    const unsubscribe = realtime.subscribe(scheduleLoad);
+    // After a reconnection, reload: updates sent while offline were missed
+    const stopStatus = realtime.onStatusChange((status) => {
+      if (status === 'online') void load();
+    });
     void load();
-    const timer = setInterval(load, intervalMs);
+
     return () => {
       cancelled = true;
-      clearInterval(timer);
+      clearTimeout(pending);
+      unsubscribe();
+      stopStatus();
     };
-  }, [intervalMs]);
+  }, []);
 
   return { data, error };
 }

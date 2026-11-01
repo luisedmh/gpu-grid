@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { FINAL_STATUSES, getJob, type Job } from '../api/jobs.ts';
+import { getJob, type Job } from '../api/jobs.ts';
+import { realtime } from '../realtime/connection.ts';
 
 interface Snapshot {
   jobId: string;
@@ -8,8 +9,8 @@ interface Snapshot {
 }
 
 /**
- * Follows a job until it reaches a final state, asking the backend every second.
- * (Later we will replace polling with real-time updates over WebSocket.)
+ * A job, kept up to date in real time: loaded once from the API,
+ * then replaced every time the backend pushes a new version of it.
  */
 export function useJob(jobId: string | null) {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
@@ -17,31 +18,31 @@ export function useJob(jobId: string | null) {
   useEffect(() => {
     if (!jobId) return;
     let cancelled = false;
-    let timer: ReturnType<typeof setTimeout>;
 
-    const poll = async () => {
+    const load = async () => {
       try {
         const job = await getJob(jobId);
-        if (cancelled) return;
-        setSnapshot({ jobId, job, error: null });
-        if (FINAL_STATUSES.includes(job.status)) return;
+        if (!cancelled) setSnapshot({ jobId, job, error: null });
       } catch (err) {
-        if (cancelled) return;
-        setSnapshot((prev) => ({
-          jobId,
-          job: prev?.jobId === jobId ? prev.job : null,
-          error: (err as Error).message,
-        }));
+        if (!cancelled) setSnapshot({ jobId, job: null, error: (err as Error).message });
       }
-      timer = setTimeout(poll, 1000);
     };
 
-    void poll();
+    const unsubscribe = realtime.subscribe((message) => {
+      if (message.type === 'job-updated' && message.job.id === jobId) {
+        setSnapshot({ jobId, job: message.job, error: null });
+      }
+    });
+    // After a reconnection, reload: updates sent while offline were missed
+    const stopStatus = realtime.onStatusChange((status) => {
+      if (status === 'online') void load();
+    });
+    void load();
 
-    // Stop polling if the job changes or the page is left
     return () => {
       cancelled = true;
-      clearTimeout(timer);
+      unsubscribe();
+      stopStatus();
     };
   }, [jobId]);
 
