@@ -1,15 +1,19 @@
 import { WebSocketServer, type WebSocket } from 'ws';
+import type { AgentSummary } from '../agents/scheduler.js';
+import { agentEvents } from './agent-events.js';
 import { jobEvents, type PublicJob } from './job-events.js';
 import { keepAlive, type UpgradeHandler } from './upgrade.js';
 
 export const CLIENT_WS_PATH = '/ws/client';
 
 /** Messages pushed to browsers. */
-export type ClientMessage = { type: 'job-updated'; job: PublicJob };
+export type ClientMessage =
+  { type: 'job-updated'; job: PublicJob } | { type: 'agents-updated'; agents: AgentSummary[] };
 
 /**
- * WebSocket endpoint for browsers: every time a job changes state,
- * the new version is pushed to all connected browsers at once.
+ * WebSocket endpoint for browsers: every time a job changes state, or a
+ * provider connects, disconnects or starts a job, the news is pushed to
+ * all connected browsers at once.
  */
 export function createClientServer(options: { heartbeatMs?: number } = {}): UpgradeHandler {
   const wss = new WebSocketServer({ noServer: true });
@@ -23,6 +27,7 @@ export function createClientServer(options: { heartbeatMs?: number } = {}): Upgr
   };
 
   jobEvents.on('job-updated', (job) => broadcast({ type: 'job-updated', job }));
+  agentEvents.on('agents-updated', (agents) => broadcast({ type: 'agents-updated', agents }));
 
   wss.on('connection', (ws: WebSocket) => {
     const stopHeartbeat = keepAlive(ws, heartbeatMs);

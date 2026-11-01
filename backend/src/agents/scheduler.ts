@@ -1,4 +1,5 @@
 import type { GpuInfo, JobResult, ServerMessage } from './protocol.js';
+import { agentEvents } from '../realtime/agent-events.js';
 import { claimNextJob, releaseJob, saveResult } from '../services/execution.service.js';
 
 /** A provider agent currently connected to this server. */
@@ -12,6 +13,7 @@ export interface ConnectedAgent {
 interface AgentState extends ConnectedAgent {
   /** Job this agent is running right now, or null when it is free. */
   currentJobId: string | null;
+  connectedAt: Date;
 }
 
 export interface AgentSummary {
@@ -19,6 +21,8 @@ export interface AgentSummary {
   name: string;
   gpus: GpuInfo[];
   busy: boolean;
+  currentJobId: string | null;
+  connectedAt: Date;
 }
 
 /**
@@ -31,7 +35,8 @@ export class Scheduler {
   private dispatchRequested = false;
 
   addAgent(agent: ConnectedAgent): void {
-    this.agents.set(agent.id, { ...agent, currentJobId: null });
+    this.agents.set(agent.id, { ...agent, currentJobId: null, connectedAt: new Date() });
+    this.announce();
     void this.dispatch();
   }
 
@@ -39,6 +44,7 @@ export class Scheduler {
     const agent = this.agents.get(agentId);
     if (!agent) return;
     this.agents.delete(agentId);
+    this.announce();
 
     if (agent.currentJobId) {
       await releaseJob(agent.currentJobId, 'The provider disconnected while running the job.');
@@ -53,16 +59,24 @@ export class Scheduler {
 
     await saveResult(jobId, result);
     agent.currentJobId = null;
+    this.announce();
     void this.dispatch();
   }
 
   listAgents(): AgentSummary[] {
-    return [...this.agents.values()].map(({ id, name, gpus, currentJobId }) => ({
+    return [...this.agents.values()].map(({ id, name, gpus, currentJobId, connectedAt }) => ({
       id,
       name,
       gpus,
       busy: currentJobId !== null,
+      currentJobId,
+      connectedAt,
     }));
+  }
+
+  /** Tells whoever is listening (the browsers) that the providers changed. */
+  private announce(): void {
+    agentEvents.emit('agents-updated', this.listAgents());
   }
 
   /**
@@ -92,6 +106,7 @@ export class Scheduler {
           }
 
           agent.currentJobId = job.id;
+          this.announce();
           agent.send({
             type: 'job',
             jobId: job.id,

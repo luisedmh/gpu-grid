@@ -2,6 +2,7 @@ import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import WebSocket from 'ws';
+import { Scheduler } from '../src/agents/scheduler.js';
 import { createApp } from '../src/app.js';
 import { prisma } from '../src/lib/prisma.js';
 import {
@@ -9,6 +10,7 @@ import {
   createClientServer,
   type ClientMessage,
 } from '../src/realtime/client-server.js';
+import { agentEvents } from '../src/realtime/agent-events.js';
 import { jobEvents } from '../src/realtime/job-events.js';
 import { routeUpgrades } from '../src/realtime/upgrade.js';
 
@@ -27,6 +29,7 @@ afterEach(async () => {
   sockets.forEach((ws) => ws.terminate());
   sockets.length = 0;
   jobEvents.removeAllListeners();
+  agentEvents.removeAllListeners();
   await new Promise((resolve) => server.close(resolve));
 });
 
@@ -70,7 +73,9 @@ describe('real-time job updates', () => {
     const { id } = await response.json();
 
     for (const messages of [first, second]) {
-      const update = await waitFor(() => messages.find((m) => m.job.id === id));
+      const update = await waitFor(() =>
+        messages.find((m) => m.type === 'job-updated' && m.job.id === id),
+      );
       expect(update).toMatchObject({
         type: 'job-updated',
         job: { name: 'Live job', status: 'PENDING' },
@@ -89,8 +94,27 @@ describe('real-time job updates', () => {
     });
     jobEvents.notify(job.id);
 
-    const update = await waitFor(() => messages.find((m) => m.job.status === 'COMPLETED'));
-    expect(update.job.stdout).toBe('done');
+    const update = await waitFor(() =>
+      messages.find((m) => m.type === 'job-updated' && m.job.status === 'COMPLETED'),
+    );
+    expect(update.type === 'job-updated' && update.job.stdout).toBe('done');
+  });
+
+  it('pushes the list of providers when one connects or disconnects', async () => {
+    const messages = await connectClient();
+    const scheduler = new Scheduler();
+
+    scheduler.addAgent({
+      id: 'agent-1',
+      name: 'PC-Casa',
+      gpus: [{ name: 'RTX 3060 Ti', memoryMb: 8192, computeCapability: '8.6' }],
+      send: () => {},
+    });
+    const connected = await waitFor(() => messages.find((m) => m.type === 'agents-updated'));
+    expect(connected).toMatchObject({ agents: [{ name: 'PC-Casa', busy: false }] });
+
+    await scheduler.removeAgent('agent-1');
+    await waitFor(() => messages.some((m) => m.type === 'agents-updated' && m.agents.length === 0));
   });
 
   it('refuses WebSocket connections on unknown paths', async () => {
