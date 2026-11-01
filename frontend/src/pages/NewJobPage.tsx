@@ -1,6 +1,7 @@
 import { Play, Upload } from 'lucide-react';
 import { useRef, useState, type ChangeEvent, type FormEvent } from 'react';
-import { ApiError, FINAL_STATUSES, createJob } from '../api/jobs.ts';
+import { errorMessage } from '../api/http.ts';
+import { FINAL_STATUSES, createJob } from '../api/jobs.ts';
 import { CodeEditor } from '../components/CodeEditor.tsx';
 import { JobConsole } from '../components/JobConsole.tsx';
 import { PageHeader } from '../components/PageHeader.tsx';
@@ -41,12 +42,7 @@ export function NewJobPage() {
       const created = await createJob({ name, sourceCode, timeoutSeconds });
       setJobId(created.id);
     } catch (err) {
-      const details = err instanceof ApiError && err.details.length > 0 ? err.details : null;
-      setSubmitError(
-        details
-          ? details.map((d) => `${d.field}: ${d.message}`).join('\n')
-          : (err as Error).message,
-      );
+      setSubmitError(errorMessage(err));
     } finally {
       setSubmitting(false);
     }
