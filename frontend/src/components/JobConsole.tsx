@@ -1,4 +1,5 @@
-import { Loader2 } from 'lucide-react';
+import { ExternalLink, Loader2 } from 'lucide-react';
+import { Link } from 'react-router';
 import { FINAL_STATUSES, type Job } from '../api/jobs.ts';
 import { JobStatusBadge } from './JobStatusBadge.tsx';
 
@@ -20,6 +21,15 @@ export function JobConsole({ job, error }: JobConsoleProps) {
           {job?.durationMs != null && <span>{(job.durationMs / 1000).toFixed(2)} s</span>}
           {job?.exitCode != null && <span>exit code {job.exitCode}</span>}
           {job && <JobStatusBadge status={job.status} />}
+          {job && (
+            <Link
+              to={`/jobs/${job.id}`}
+              className="inline-flex items-center gap-1 font-medium text-brand-500 hover:underline"
+            >
+              Details
+              <ExternalLink className="size-3" />
+            </Link>
+          )}
         </span>
       </div>
       <pre className="flex-1 overflow-auto bg-slate-950 p-4 font-mono text-xs leading-relaxed text-slate-200">

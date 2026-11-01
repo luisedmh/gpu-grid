@@ -38,6 +38,18 @@ export interface Job {
   finishedAt: string | null;
 }
 
+/** Lighter version of a job returned by the list endpoint. */
+export type JobSummary = Pick<
+  Job,
+  'id' | 'name' | 'status' | 'exitCode' | 'durationMs' | 'attempts' | 'createdAt' | 'finishedAt'
+>;
+
+export interface JobList {
+  jobs: JobSummary[];
+  /** Number of jobs in each status, over all jobs. */
+  counts: Record<JobStatus, number>;
+}
+
 export interface NewJob {
   name: string;
   sourceCode: string;
@@ -82,4 +94,8 @@ export function createJob(job: NewJob) {
 
 export function getJob(id: string) {
   return request<Job>(`/api/jobs/${id}`);
+}
+
+export function listJobs() {
+  return request<JobList>('/api/jobs?limit=100');
 }

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { JobStatus } from '../generated/prisma/enums.js';
 
 /** Limits shared by validation and documentation. */
 export const JOB_LIMITS = {
@@ -21,3 +22,11 @@ export const createJobSchema = z.object({
 });
 
 export type CreateJobInput = z.infer<typeof createJobSchema>;
+
+/** Query string accepted by GET /api/jobs, e.g. ?status=RUNNING&limit=20 */
+export const listJobsQuerySchema = z.object({
+  status: z.enum(JobStatus).optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+});
+
+export type ListJobsQuery = z.infer<typeof listJobsQuerySchema>;

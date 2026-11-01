@@ -113,3 +113,55 @@ describe('unknown routes', () => {
     expect(response.body.error).toBeDefined();
   });
 });
+
+describe('GET /api/jobs', () => {
+  async function createJobs() {
+    const names = ['first', 'second', 'third'];
+    for (const name of names) {
+      await prisma.job.create({ data: { name, sourceCode: 'int main() {}' } });
+      // Distinct timestamps, so the order is deterministic
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    await prisma.job.updateMany({ where: { name: 'second' }, data: { status: 'COMPLETED' } });
+  }
+
+  it('lists jobs newest first, without their outputs', async () => {
+    await createJobs();
+
+    const response = await request(app).get('/api/jobs');
+
+    expect(response.status).toBe(200);
+    expect(response.body.jobs.map((job: { name: string }) => job.name)).toEqual([
+      'third',
+      'second',
+      'first',
+    ]);
+    expect(response.body.jobs[0]).not.toHaveProperty('stdout');
+    expect(response.body.jobs[0]).not.toHaveProperty('sourceCode');
+  });
+
+  it('counts jobs in every status', async () => {
+    await createJobs();
+
+    const response = await request(app).get('/api/jobs');
+
+    expect(response.body.counts).toMatchObject({ PENDING: 2, COMPLETED: 1, FAILED: 0 });
+  });
+
+  it('filters by status and limits the number of results', async () => {
+    await createJobs();
+
+    const filtered = await request(app).get('/api/jobs?status=COMPLETED');
+    const limited = await request(app).get('/api/jobs?limit=2');
+
+    expect(filtered.body.jobs.map((job: { name: string }) => job.name)).toEqual(['second']);
+    expect(limited.body.jobs).toHaveLength(2);
+  });
+
+  it('rejects an unknown status', async () => {
+    const response = await request(app).get('/api/jobs?status=EXPLODED');
+
+    expect(response.status).toBe(400);
+    expect(response.body.details[0].field).toBe('status');
+  });
+});

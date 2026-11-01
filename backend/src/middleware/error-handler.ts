@@ -14,7 +14,7 @@ export function notFoundHandler(req: Request, res: Response) {
 export function errorHandler(err: unknown, _req: Request, res: Response, _next: NextFunction) {
   if (err instanceof ZodError) {
     res.status(400).json({
-      error: 'Invalid request body',
+      error: 'Invalid request',
       details: err.issues.map((issue) => ({
         field: issue.path.join('.'),
         message: issue.message,
