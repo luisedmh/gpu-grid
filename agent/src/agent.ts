@@ -1,16 +1,25 @@
 import 'dotenv/config';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { createHash } from 'node:crypto';
+import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import WebSocket from 'ws';
 import { config } from './config.js';
 import { readGpuInfo } from './gpu-info.js';
 import type { AgentMessage, ServerMessage } from './protocol.js';
 import { runBinary } from './runner.js';
+import { checkSandbox } from './security.js';
 
 if (!config.token) {
   console.error('AGENT_TOKEN is not set. Register this machine in the web (My machines)');
   console.error('and put its token in agent/.env (see .env.example).');
+  process.exit(1);
+}
+
+// Refuse to start if the sandbox is not what it should be
+try {
+  (await checkSandbox(config.runtime)).forEach((line) => console.log(line));
+} catch (err) {
+  console.error((err as Error).message);
   process.exit(1);
 }
 
@@ -84,21 +93,29 @@ async function runJob(
   send: (message: AgentMessage) => void,
 ) {
   console.log(`Running job ${job.jobId} (limit ${job.timeoutSeconds} s)`);
-  const workDir = await mkdtemp(path.join(tmpdir(), 'gpugrid-agent-'));
+  await mkdir(config.workDir, { recursive: true });
+  const workDir = await mkdtemp(path.join(config.workDir, 'gpugrid-agent-'));
+  // The program runs as "nobody" inside the container: it must be able to enter the folder
+  await chmod(workDir, 0o755);
 
   try {
     const response = await fetch(new URL(job.binaryPath, config.serverUrl), {
       headers: { Authorization: `Bearer ${config.token}` },
     });
     if (!response.ok) throw new Error(`Binary download failed with HTTP ${response.status}`);
-    await writeFile(path.join(workDir, 'program'), Buffer.from(await response.arrayBuffer()), {
-      mode: 0o755,
-    });
+    const binary = Buffer.from(await response.arrayBuffer());
+
+    // Only run exactly what the platform compiled: a corrupted or swapped file is refused
+    const sha256 = createHash('sha256').update(binary).digest('hex');
+    if (sha256 !== job.binarySha256) throw new Error('The binary does not match its checksum');
+
+    await writeFile(path.join(workDir, 'program'), binary, { mode: 0o755 });
 
     const result = await runBinary({
       binaryDir: workDir,
       binaryName: 'program',
       timeoutMs: job.timeoutSeconds * 1000,
+      runtime: config.runtime || undefined,
     });
     send({ type: 'result', jobId: job.jobId, ...result });
     console.log(`Job ${job.jobId} finished: exit code ${result.exitCode}, ${result.durationMs} ms`);

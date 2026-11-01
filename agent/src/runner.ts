@@ -11,6 +11,10 @@ export interface RunOptions {
   timeoutMs: number;
   /** Image used to run the binary. It does not need CUDA installed. */
   image?: string;
+  /** Docker runtime, e.g. "runsc" for gVisor. Docker's default when not given. */
+  runtime?: string;
+  /** Command to run instead of the binary (used by the start-up check). */
+  command?: string[];
 }
 
 export interface RunResult {
@@ -26,34 +30,66 @@ export interface RunResult {
 /** Output beyond this size is discarded, so a program cannot flood memory. */
 const MAX_OUTPUT_CHARS = 1_000_000;
 
-/**
- * Runs a compiled CUDA binary inside a short-lived Docker container with GPU access,
- * no network, a read-only mount and resource limits.
- */
-export function runBinary(options: RunOptions): Promise<RunResult> {
-  const containerName = `gpugrid-job-${randomUUID()}`;
-  const user = `${process.getuid?.() ?? 1000}:${process.getgid?.() ?? 1000}`;
+/** Unprivileged user the program runs as inside the container ("nobody"). */
+export const SANDBOX_USER = '65534:65534';
 
-  const args = [
+/**
+ * The `docker run` arguments that isolate a job. Each line is one layer of defence:
+ * the program can use the GPU and print, and nothing else.
+ */
+export function sandboxArgs(options: RunOptions, containerName: string): string[] {
+  return [
     'run',
     '--rm',
     '--name',
     containerName,
+    // gVisor (runsc) puts a second kernel between the program and the real one
+    ...(options.runtime ? ['--runtime', options.runtime] : []),
     '--gpus',
     'all',
+    // No network: it cannot send data anywhere or attack other machines
     '--network',
     'none',
+    // An unprivileged user, without any Linux capability, that can never gain more
     '--user',
-    user,
+    SANDBOX_USER,
+    '--cap-drop',
+    'ALL',
+    '--security-opt',
+    'no-new-privileges',
+    // Nothing on disk can be changed; only a small scratch /tmp, from which nothing can run
+    '--read-only',
+    '--tmpfs',
+    '/tmp:rw,noexec,nosuid,size=64m',
+    // CUDA would otherwise try to write its compilation cache in the home folder
+    '--env',
+    'CUDA_CACHE_DISABLE=1',
+    // Resource limits: memory (without swap), CPU, processes and open files
     '--memory',
     '4g',
+    '--memory-swap',
+    '4g',
+    '--cpus',
+    '2',
     '--pids-limit',
-    '256',
+    '64',
+    '--ulimit',
+    'nofile=256:256',
+    // The binary, read-only
     '-v',
     `${path.resolve(options.binaryDir)}:/work:ro`,
     options.image ?? 'ubuntu:24.04',
-    `/work/${options.binaryName}`,
+    ...(options.command ?? [`/work/${options.binaryName}`]),
   ];
+}
+
+/**
+ * Runs a compiled CUDA binary inside a short-lived, locked-down Docker container
+ * (see sandboxArgs) and kills it if it runs out of time.
+ */
+export function runBinary(options: RunOptions): Promise<RunResult> {
+  const containerName = `gpugrid-job-${randomUUID()}`;
+  const args = sandboxArgs(options, containerName);
 
   return new Promise((resolve, reject) => {
     const start = performance.now();

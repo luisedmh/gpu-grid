@@ -25,4 +25,11 @@ export type AgentMessage =
 /** Messages the backend sends. */
 export type ServerMessage =
   | { type: 'welcome'; machineId: string; name: string }
-  | { type: 'job'; jobId: string; timeoutSeconds: number; binaryPath: string };
+  | {
+      type: 'job';
+      jobId: string;
+      timeoutSeconds: number;
+      binaryPath: string;
+      /** SHA-256 of the binary, to check it arrived exactly as compiled */
+      binarySha256: string;
+    };
