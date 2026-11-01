@@ -1,37 +1,23 @@
-import { useEffect, useState } from 'react';
+import { useConnectionStatus } from '../realtime/useConnectionStatus.ts';
+import type { ConnectionStatus } from '../realtime/connection.ts';
 
-type Status = 'checking' | 'online' | 'offline';
+const STYLES: Record<ConnectionStatus, { dot: string; label: string }> = {
+  connecting: { dot: 'bg-slate-400', label: 'Connecting…' },
+  online: { dot: 'bg-emerald-400', label: 'Live updates on' },
+  offline: { dot: 'bg-red-400', label: 'Backend offline' },
+};
 
-/** Small indicator that asks the backend whether it is alive every 10 seconds. */
+/** Shows whether the live connection with the backend is up. */
 export function BackendStatus() {
-  const [status, setStatus] = useState<Status>('checking');
-
-  useEffect(() => {
-    const check = async () => {
-      try {
-        const response = await fetch('/api/health');
-        setStatus(response.ok ? 'online' : 'offline');
-      } catch {
-        setStatus('offline');
-      }
-    };
-
-    void check();
-    const timer = setInterval(check, 10_000);
-    // Cleanup: stop polling when the component disappears
-    return () => clearInterval(timer);
-  }, []);
-
-  const styles: Record<Status, { dot: string; label: string }> = {
-    checking: { dot: 'bg-slate-400', label: 'Checking backend…' },
-    online: { dot: 'bg-emerald-400', label: 'Backend online' },
-    offline: { dot: 'bg-red-400', label: 'Backend offline' },
-  };
+  const status = useConnectionStatus();
+  const { dot, label } = STYLES[status];
 
   return (
     <div className="flex items-center gap-2 text-xs text-slate-400">
-      <span className={`size-2 rounded-full ${styles[status].dot}`} />
-      {styles[status].label}
+      <span
+        className={`size-2 rounded-full ${dot} ${status === 'online' ? 'animate-pulse' : ''}`}
+      />
+      {label}
     </div>
   );
 }
