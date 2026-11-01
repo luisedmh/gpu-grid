@@ -1,6 +1,7 @@
 import type { AgentSummary } from '../agents/scheduler.js';
 import type { SessionUser } from '../auth/session.js';
 import { NotFoundError } from '../lib/http-error.js';
+import { config } from '../config.js';
 import { generateMachineToken } from '../lib/machine-token.js';
 import { prisma } from '../lib/prisma.js';
 
@@ -23,7 +24,8 @@ export async function createMachine(name: string, ownerId: string) {
     data: { name, ownerId, tokenHash: hash, tokenPrefix: prefix },
     select: machineFields,
   });
-  return { machine, token };
+  // What the web needs to show the one-line install command
+  return { machine, token, agentImage: config.agentImage };
 }
 
 /** The viewer's machines, each combined with its live state if it is connected. */

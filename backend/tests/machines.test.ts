@@ -33,6 +33,7 @@ describe('registering machines', () => {
     expect(response.status).toBe(201);
     const { machine, token } = response.body;
     expect(token).toMatch(/^ggm_/);
+    expect(response.body.agentImage).toMatch(/gpu-grid-agent/);
     expect(machine).toMatchObject({ name: 'PC-Casa', tokenPrefix: token.slice(0, 10) });
     expect(machine).not.toHaveProperty('tokenHash');
 
