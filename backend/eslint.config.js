@@ -8,4 +8,10 @@ export default defineConfig(
   // Recommended rules for JavaScript and TypeScript
   js.configs.recommended,
   tseslint.configs.recommended,
+  // Arguments starting with _ are intentionally unused (e.g. Express handler signatures)
+  {
+    rules: {
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+    },
+  },
 );

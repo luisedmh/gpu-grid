@@ -1,4 +1,7 @@
 import express from 'express';
+import { errorHandler, notFoundHandler } from './middleware/error-handler.js';
+import { healthRouter } from './routes/health.routes.js';
+import { jobsRouter } from './routes/jobs.routes.js';
 
 /**
  * Builds and configures the Express application.
@@ -8,13 +11,14 @@ import express from 'express';
 export function createApp() {
   const app = express();
 
-  // Parse JSON request bodies into req.body
-  app.use(express.json());
+  // Parse JSON bodies; CUDA sources can be large, so allow up to 256 KB
+  app.use(express.json({ limit: '256kb' }));
 
-  // Health check: lets Docker, Nginx or a monitor know the backend is alive
-  app.get('/api/health', (_req, res) => {
-    res.json({ status: 'ok' });
-  });
+  app.use('/api/health', healthRouter);
+  app.use('/api/jobs', jobsRouter);
+
+  app.use('/api', notFoundHandler);
+  app.use(errorHandler);
 
   return app;
 }
