@@ -13,4 +13,8 @@ export const config = {
   compileConcurrency: Number(process.env.COMPILE_CONCURRENCY) || 2,
   /** Shared secret that provider agents must present to connect. */
   agentToken: process.env.AGENT_TOKEN ?? '',
+  /** Secret used to sign session tokens (JWT). Anyone who knows it can forge sessions. */
+  jwtSecret: process.env.JWT_SECRET ?? '',
+  /** Send cookies only over HTTPS (enable in production). */
+  secureCookies: process.env.NODE_ENV === 'production',
 };

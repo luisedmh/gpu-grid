@@ -1,22 +1,68 @@
 import { Navigate, Route, Routes } from 'react-router';
+import { homePathFor, useAuth } from './auth/auth-context.ts';
+import { RequireAuth } from './auth/RequireAuth.tsx';
 import { AppLayout } from './layout/AppLayout.tsx';
+import { AuthPage } from './pages/AuthPage.tsx';
 import { JobsPage } from './pages/JobsPage.tsx';
 import { NewJobPage } from './pages/NewJobPage.tsx';
 import { NotFoundPage } from './pages/NotFoundPage.tsx';
 import { ProvidersPage } from './pages/ProvidersPage.tsx';
 
-/** Which page is shown for each URL. All pages share the same layout. */
+/** Which page is shown for each URL, and who may see it. */
 export default function App() {
   return (
     <Routes>
-      <Route element={<AppLayout />}>
-        <Route index element={<Navigate to="/new" replace />} />
-        <Route path="new" element={<NewJobPage />} />
-        <Route path="jobs" element={<JobsPage />} />
-        <Route path="jobs/:jobId" element={<JobsPage />} />
-        <Route path="providers" element={<ProvidersPage />} />
+      <Route path="login" element={<AuthPage mode="login" />} />
+      <Route path="register" element={<AuthPage mode="register" />} />
+
+      <Route
+        element={
+          <RequireAuth>
+            <AppLayout />
+          </RequireAuth>
+        }
+      >
+        <Route index element={<HomeRedirect />} />
+        <Route
+          path="new"
+          element={
+            <RequireAuth roles={['CLIENT', 'ADMIN']}>
+              <NewJobPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="jobs"
+          element={
+            <RequireAuth roles={['CLIENT', 'ADMIN']}>
+              <JobsPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="jobs/:jobId"
+          element={
+            <RequireAuth roles={['CLIENT', 'ADMIN']}>
+              <JobsPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="providers"
+          element={
+            <RequireAuth roles={['PROVIDER', 'ADMIN']}>
+              <ProvidersPage />
+            </RequireAuth>
+          }
+        />
         <Route path="*" element={<NotFoundPage />} />
       </Route>
     </Routes>
   );
+}
+
+/** "/" sends each user to the main page of their role. */
+function HomeRedirect() {
+  const { user } = useAuth();
+  return <Navigate to={user ? homePathFor(user.role) : '/login'} replace />;
 }

@@ -5,6 +5,7 @@
 export const publicJobFields = {
   id: true,
   name: true,
+  clientId: true,
   status: true,
   timeoutSeconds: true,
   compilerOutput: true,

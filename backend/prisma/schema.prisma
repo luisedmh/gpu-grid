@@ -1,6 +1,3 @@
-// Prisma schema: the single source of truth for the database structure.
-// After changing it: `npm run db:migrate` (creates a migration) and `npm run db:generate`.
-
 generator client {
   provider            = "prisma-client"
   output              = "../src/generated/prisma"
@@ -12,19 +9,37 @@ datasource db {
   provider = "postgresql"
 }
 
-/// Lifecycle of a job, from upload to final result.
-enum JobStatus {
-  PENDING        // received, waiting to be compiled
-  COMPILING      // nvcc is running
-  COMPILE_FAILED // nvcc reported errors (final)
-  QUEUED         // compiled, waiting for a free GPU
-  RUNNING        // executing on a provider's GPU
-  COMPLETED      // finished with exit code 0 (final)
-  FAILED         // non-zero exit code or execution error (final)
-  TIMED_OUT      // killed after exceeding its time limit (final)
+/// What a user can do on the platform.
+enum Role {
+  CLIENT   // submits jobs
+  PROVIDER // offers GPU machines
+  ADMIN    // sees and manages everything
 }
 
-/// A CUDA program submitted by a client, and everything that happened to it.
+/// A person with an account.
+model User {
+  id           String   @id @default(uuid())
+  name         String
+  email        String   @unique
+  /// Never the password itself: a salted scrypt hash of it
+  passwordHash String
+  role         Role     @default(CLIENT)
+  createdAt    DateTime @default(now())
+
+  jobs Job[]
+}
+
+enum JobStatus {
+  PENDING
+  COMPILING
+  COMPILE_FAILED
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+  TIMED_OUT
+}
+
 model Job {
   id             String    @id @default(uuid())
   name           String
@@ -32,22 +47,21 @@ model Job {
   status         JobStatus @default(PENDING)
   timeoutSeconds Int       @default(60)
 
-  // Compilation
+  // Owner
+  clientId String
+  client   User   @relation(fields: [clientId], references: [id], onDelete: Cascade)
   compilerOutput String?
   binaryPath     String?
-
-  // Execution
   attempts   Int     @default(0)
   stdout     String?
   stderr     String?
   exitCode   Int?
   durationMs Int?
-
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
   startedAt  DateTime?
   finishedAt DateTime?
-
   @@index([status])
   @@index([createdAt])
+  @@index([clientId, createdAt])
 }
