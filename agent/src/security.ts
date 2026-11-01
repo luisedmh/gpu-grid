@@ -1,6 +1,5 @@
 import { execFile } from 'node:child_process';
-import { mkdtemp, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { runBinary } from './runner.js';
@@ -17,7 +16,7 @@ export async function dockerRuntimes(): Promise<string[]> {
  * Checks the sandbox before taking any job, and explains what protects this machine.
  * Throws if the configured runtime is missing: better not to run than to run unprotected.
  */
-export async function checkSandbox(runtime: string): Promise<string[]> {
+export async function checkSandbox(runtime: string, workDir: string): Promise<string[]> {
   const available = await dockerRuntimes();
   if (runtime && !available.includes(runtime)) {
     throw new Error(
@@ -28,7 +27,9 @@ export async function checkSandbox(runtime: string): Promise<string[]> {
 
   // Run nvidia-smi inside the very same sandbox the jobs use: if the GPU is not
   // visible there, every job would fail, so it is better to stop now and say why
-  const emptyDir = await mkdtemp(path.join(tmpdir(), 'gpugrid-check-'));
+  // (In the work folder: when the agent itself runs in Docker, that folder exists on the host too)
+  await mkdir(workDir, { recursive: true });
+  const emptyDir = await mkdtemp(path.join(workDir, 'gpugrid-check-'));
   try {
     const check = await runBinary({
       binaryDir: emptyDir,

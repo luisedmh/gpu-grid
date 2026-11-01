@@ -9,18 +9,29 @@ import type { AgentMessage, ServerMessage } from './protocol.js';
 import { runBinary } from './runner.js';
 import { checkSandbox } from './security.js';
 
+/**
+ * Stops the agent for good, for problems that retrying cannot fix (a wrong token,
+ * a removed machine...). It exits with code 0 on purpose: when the agent runs in
+ * Docker with `--restart on-failure`, Docker restarts it after crashes and reboots,
+ * but not after this.
+ */
+function stop(...lines: string[]): never {
+  lines.forEach((line) => console.error(line));
+  process.exit(0);
+}
+
 if (!config.token) {
-  console.error('AGENT_TOKEN is not set. Register this machine in the web (My machines)');
-  console.error('and put its token in agent/.env (see .env.example).');
-  process.exit(1);
+  stop(
+    'AGENT_TOKEN is not set. Register this machine in the web (My machines)',
+    'and put its token in agent/.env (see .env.example).',
+  );
 }
 
 // Refuse to start if the sandbox is not what it should be
 try {
-  (await checkSandbox(config.runtime)).forEach((line) => console.log(line));
+  (await checkSandbox(config.runtime, config.workDir)).forEach((line) => console.log(line));
 } catch (err) {
-  console.error((err as Error).message);
-  process.exit(1);
+  stop((err as Error).message);
 }
 
 const wsUrl = `${config.serverUrl.replace(/^http/, 'ws')}/ws/agent`;
@@ -57,12 +68,10 @@ function connect() {
 
   ws.on('close', (code) => {
     if (code === CLOSE_MACHINE_REMOVED) {
-      console.error('This machine was removed from the platform. Register it again to rejoin.');
-      process.exit(1);
+      stop('This machine was removed from the platform. Register it again to rejoin.');
     }
     if (code === CLOSE_REPLACED) {
-      console.error('Another agent connected with this same token. Stopping this one.');
-      process.exit(1);
+      stop('Another agent connected with this same token. Stopping this one.');
     }
     // Wait longer after each failed attempt (1 s, 2 s, 4 s... up to 30 s)
     const delay = Math.min(30_000, 1000 * 2 ** reconnectAttempts);
@@ -74,9 +83,10 @@ function connect() {
   // The backend answered the connection request with an HTTP error instead of accepting it
   ws.on('unexpected-response', (_req, res) => {
     if (res.statusCode === 401) {
-      console.error('The backend does not know this token. Check AGENT_TOKEN in agent/.env,');
-      console.error('or register the machine again in the web (My machines).');
-      process.exit(1);
+      stop(
+        'The backend does not know this token. Check AGENT_TOKEN,',
+        'or register the machine again in the web (My machines).',
+      );
     }
     console.error(`Unexpected response from the backend: HTTP ${res.statusCode}`);
     ws.terminate();
