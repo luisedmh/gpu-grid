@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router';
 import { HOME_PATH, useAuth } from './auth/auth-context.ts';
 import { RequireAuth } from './auth/RequireAuth.tsx';
 import { AppLayout } from './layout/AppLayout.tsx';
+import { AdminPage } from './pages/AdminPage.tsx';
 import { AuthPage } from './pages/AuthPage.tsx';
 import { CreditsPage } from './pages/CreditsPage.tsx';
 import { JobsPage } from './pages/JobsPage.tsx';
@@ -29,6 +30,14 @@ export default function App() {
         <Route path="jobs/:jobId" element={<JobsPage />} />
         <Route path="machines" element={<MachinesPage />} />
         <Route path="credits" element={<CreditsPage />} />
+        <Route
+          path="admin"
+          element={
+            <RequireAuth adminOnly>
+              <AdminPage />
+            </RequireAuth>
+          }
+        />
         <Route path="*" element={<NotFoundPage />} />
       </Route>
     </Routes>
