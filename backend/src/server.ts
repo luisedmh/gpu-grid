@@ -1,11 +1,13 @@
 import 'dotenv/config';
-import { attachAgentServer } from './agents/agent-server.js';
+import { AGENT_WS_PATH, createAgentServer } from './agents/agent-server.js';
 import { Scheduler } from './agents/scheduler.js';
 import { createApp } from './app.js';
 import { config } from './config.js';
 import { compileJob, recoverPendingJobs } from './compiler/compile-job.js';
 import { CompileQueue } from './compiler/compile-queue.js';
 import { createDockerCompiler } from './compiler/docker-compiler.js';
+import { CLIENT_WS_PATH, createClientServer } from './realtime/client-server.js';
+import { routeUpgrades } from './realtime/upgrade.js';
 import { recoverRunningJobs } from './services/execution.service.js';
 
 if (!config.agentToken) {
@@ -43,7 +45,11 @@ const server = app.listen(config.port, () => {
   console.log(`Backend listening on port ${config.port}`);
 });
 
-attachAgentServer(server, { token: config.agentToken, scheduler });
+// WebSocket endpoints: providers on /ws/agent, browsers on /ws/client
+routeUpgrades(server, {
+  [AGENT_WS_PATH]: createAgentServer({ token: config.agentToken, scheduler }),
+  [CLIENT_WS_PATH]: createClientServer(),
+});
 
 // Safety net: try to dispatch regularly in case an event was missed
 setInterval(() => void scheduler.dispatch(), 10_000);

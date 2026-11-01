@@ -1,47 +1,18 @@
 import { prisma } from '../lib/prisma.js';
 import { NotFoundError } from '../lib/http-error.js';
 import { JobStatus } from '../generated/prisma/enums.js';
+import { jobEvents } from '../realtime/job-events.js';
 import type { CreateJobInput, ListJobsQuery } from '../schemas/jobs.schema.js';
-
-/**
- * Fields of a job that clients are allowed to see.
- * Internal details (such as where the binary is stored) stay private.
- */
-const publicJobFields = {
-  id: true,
-  name: true,
-  status: true,
-  timeoutSeconds: true,
-  compilerOutput: true,
-  attempts: true,
-  stdout: true,
-  stderr: true,
-  exitCode: true,
-  durationMs: true,
-  createdAt: true,
-  updatedAt: true,
-  startedAt: true,
-  finishedAt: true,
-} as const;
-
-/** Lighter view used in lists: no outputs, which can be large. */
-const jobSummaryFields = {
-  id: true,
-  name: true,
-  status: true,
-  exitCode: true,
-  durationMs: true,
-  attempts: true,
-  createdAt: true,
-  finishedAt: true,
-} as const;
+import { jobSummaryFields, publicJobFields } from './job-fields.js';
 
 /** Stores a new job. It starts as PENDING, waiting to be compiled. */
 export async function createJob(input: CreateJobInput) {
-  return prisma.job.create({
+  const job = await prisma.job.create({
     data: input,
     select: { id: true, status: true, createdAt: true },
   });
+  jobEvents.notify(job.id);
+  return job;
 }
 
 /** Returns the public view of a job, or throws NotFoundError. */

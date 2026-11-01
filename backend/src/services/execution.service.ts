@@ -1,5 +1,6 @@
 import { prisma } from '../lib/prisma.js';
 import type { JobResult } from '../agents/protocol.js';
+import { jobEvents } from '../realtime/job-events.js';
 
 /** A job may be retried on another provider this many times before it fails for good. */
 export const MAX_ATTEMPTS = 3;
@@ -23,6 +24,7 @@ export async function claimNextJob() {
       data: { status: 'RUNNING', startedAt: new Date(), attempts: { increment: 1 } },
     });
     if (claimed.count === 1) {
+      jobEvents.notify(next.id);
       return prisma.job.findUniqueOrThrow({
         where: { id: next.id },
         select: { id: true, timeoutSeconds: true },
@@ -48,6 +50,7 @@ export async function saveResult(jobId: string, result: JobResult) {
       finishedAt: new Date(),
     },
   });
+  jobEvents.notify(jobId);
 }
 
 /**
@@ -73,6 +76,7 @@ export async function releaseJob(jobId: string, reason: string) {
       data: { status: 'QUEUED', startedAt: null },
     });
   }
+  jobEvents.notify(jobId);
 }
 
 /** After a restart no agent is connected, so RUNNING jobs go back to the queue. */
