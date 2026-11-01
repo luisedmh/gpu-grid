@@ -28,7 +28,7 @@ export function listMachines() {
 
 /** Registers a machine. The token in the answer is shown only this once. */
 export function createMachine(name: string) {
-  return request<{ machine: Machine; token: string }>('/api/machines', {
+  return request<{ machine: Machine; token: string; agentImage: string }>('/api/machines', {
     method: 'POST',
     body: JSON.stringify({ name }),
   });

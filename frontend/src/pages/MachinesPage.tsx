@@ -12,6 +12,8 @@ interface NewMachine {
   id: string;
   name: string;
   token: string;
+  /** Docker image of the agent, for the one-line install command */
+  agentImage: string;
 }
 
 export function MachinesPage() {
@@ -202,8 +204,8 @@ function AddMachineDialog({
     setSaving(true);
     setError(null);
     try {
-      const { machine, token } = await createMachine(name.trim());
-      onCreated({ id: machine.id, name: machine.name, token });
+      const { machine, token, agentImage } = await createMachine(name.trim());
+      onCreated({ id: machine.id, name: machine.name, token, agentImage });
     } catch (err) {
       setError(errorMessage(err));
       setSaving(false);
@@ -272,12 +274,33 @@ function AddMachineDialog({
 }
 
 /** Shows the token of a new machine. It is the only time it can be seen. */
+type InstallMethod = 'docker' | 'source';
+
+/** The one command that installs and starts the agent on a machine with Docker. */
+function dockerCommand(machine: NewMachine) {
+  return [
+    'docker run -d --name gpugrid-agent --restart on-failure \\',
+    '  --network host --gpus all \\',
+    '  -v /var/run/docker.sock:/var/run/docker.sock \\',
+    '  -v /var/lib/gpugrid-agent:/var/lib/gpugrid-agent \\',
+    `  -e SERVER_URL=${window.location.origin} \\`,
+    `  -e AGENT_TOKEN=${machine.token} \\`,
+    `  ${machine.agentImage}`,
+  ].join('\n');
+}
+
+/** Shows the token of a new machine, and how to start its agent. It is the only time it can be seen. */
 function TokenNotice({ machine, onClose }: { machine: NewMachine; onClose: () => void }) {
+  const [method, setMethod] = useState<InstallMethod>('docker');
   const [copied, setCopied] = useState(false);
-  const command = `AGENT_TOKEN=${machine.token}`;
+
+  const snippet =
+    method === 'docker'
+      ? dockerCommand(machine)
+      : `# agent/.env\nSERVER_URL=${window.location.origin}\nAGENT_TOKEN=${machine.token}\n\ncd agent && npm install && npm start`;
 
   async function copy() {
-    await navigator.clipboard.writeText(machine.token);
+    await navigator.clipboard.writeText(snippet);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }
@@ -289,31 +312,48 @@ function TokenNotice({ machine, onClose }: { machine: NewMachine; onClose: () =>
         <div className="min-w-0 flex-1">
           <h2 className="font-semibold text-emerald-900">"{machine.name}" is registered</h2>
           <p className="mt-0.5 text-sm text-emerald-800">
-            Copy its token now: it is shown only once. If you lose it, remove the machine and add it
-            again.
+            Start the agent on that machine with the command below. It contains the machine&apos;s
+            token, which is shown only once: if you lose it, remove the machine and add it again.
           </p>
 
           <div className="mt-3 flex items-center gap-2">
-            <code className="min-w-0 flex-1 truncate rounded-lg bg-white px-3 py-2 font-mono text-xs text-slate-800 ring-1 ring-emerald-200">
-              {machine.token}
-            </code>
+            <div className="flex gap-1 rounded-lg bg-emerald-100 p-0.5 text-xs font-semibold">
+              {(
+                [
+                  ['docker', 'With Docker (recommended)'],
+                  ['source', 'From the source code'],
+                ] as const
+              ).map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setMethod(id)}
+                  className={`rounded-md px-2.5 py-1 ${
+                    method === id ? 'bg-white text-emerald-900 shadow-sm' : 'text-emerald-700'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
             <button
               type="button"
               onClick={copy}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700"
+              className="ml-auto inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700"
             >
               {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
               {copied ? 'Copied' : 'Copy'}
             </button>
           </div>
 
-          <p className="mt-3 text-sm text-emerald-800">
-            On that machine, put it in <code className="font-mono">agent/.env</code> and start the
-            agent:
-          </p>
-          <pre className="mt-1.5 overflow-x-auto rounded-lg bg-slate-950 px-3 py-2 font-mono text-xs text-slate-200">
-            {`# agent/.env\n${command}\n\ncd agent && npm start`}
+          <pre className="mt-2 overflow-x-auto rounded-lg bg-slate-950 px-3 py-2.5 font-mono text-xs leading-relaxed text-slate-200">
+            {snippet}
           </pre>
+          <p className="mt-2 text-xs text-emerald-800">
+            {method === 'docker'
+              ? 'Needs Docker and the NVIDIA Container Toolkit. The agent starts again by itself after a reboot; stop it with docker rm -f gpugrid-agent.'
+              : 'Needs Node.js, Docker and the NVIDIA Container Toolkit, and a copy of the repository.'}
+          </p>
         </div>
         <button
           type="button"
