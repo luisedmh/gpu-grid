@@ -109,3 +109,8 @@ export async function recoverRunningJobs() {
   });
   return count;
 }
+
+/** Whether a machine is still registered (it may have been deleted while connected). */
+export async function machineExists(machineId: string) {
+  return (await prisma.machine.count({ where: { id: machineId } })) > 0;
+}

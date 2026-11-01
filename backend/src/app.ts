@@ -3,6 +3,7 @@ import type { Scheduler } from './agents/scheduler.js';
 import type { JobsDeps } from './controllers/jobs.controller.js';
 import { authenticate } from './middleware/auth.js';
 import { errorHandler, notFoundHandler } from './middleware/error-handler.js';
+import { createAdminRouter } from './routes/admin.routes.js';
 import { createAgentRouter } from './routes/agent.routes.js';
 import { authRouter } from './routes/auth.routes.js';
 import { creditsRouter } from './routes/credits.routes.js';
@@ -36,6 +37,7 @@ export function createApp(deps: AppDeps = {}) {
   app.use('/api/credits', creditsRouter);
   app.use('/api/machines', createMachinesRouter(deps.scheduler));
   app.use('/api/agent', createAgentRouter());
+  app.use('/api/admin', createAdminRouter(deps.scheduler));
 
   app.use('/api', notFoundHandler);
   app.use(errorHandler);

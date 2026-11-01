@@ -223,6 +223,21 @@ describe('job execution', () => {
 });
 
 describe('fault tolerance', () => {
+  it('keeps giving jobs to other machines when one of them has been deleted', async () => {
+    const ghost = await connectNewMachine('ghost');
+    await waitFor(() => scheduler.listAgents().length === 1);
+    // Deleted straight from the database, so the scheduler was not told
+    await prisma.machine.delete({ where: { id: ghost.machine.id } });
+    const healthy = await connectNewMachine('healthy');
+    await waitFor(() => scheduler.listAgents().length === 2);
+
+    const job = await createQueuedJob();
+    await scheduler.dispatch();
+
+    expect((await healthy.nextJob()).jobId).toBe(job.id);
+    expect(await ghost.closed).toBe(4001);
+  });
+
   it('requeues the job when its machine disconnects, and another machine finishes it', async () => {
     const job = await createQueuedJob();
     const flaky = await connectNewMachine('flaky');

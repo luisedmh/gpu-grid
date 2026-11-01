@@ -1,6 +1,11 @@
 import type { GpuInfo, JobResult, ServerMessage } from './protocol.js';
 import { agentEvents } from '../realtime/agent-events.js';
-import { claimNextJob, releaseJob, saveResult } from '../services/execution.service.js';
+import {
+  claimNextJob,
+  machineExists,
+  releaseJob,
+  saveResult,
+} from '../services/execution.service.js';
 
 /** A machine whose agent is connected to this server right now. */
 export interface ConnectedAgent {
@@ -123,7 +128,17 @@ export class Scheduler {
         for (const agent of this.agents.values()) {
           if (agent.currentJobId) continue;
 
-          const job = await claimNextJob(agent.machineId);
+          let job;
+          try {
+            job = await claimNextJob(agent.machineId);
+          } catch (err) {
+            // A problem with one machine must not stop the others from getting work
+            console.error(`Could not give a job to ${agent.name}:`, err);
+            if (!(await machineExists(agent.machineId))) {
+              this.disconnect(agent.machineId, 'This machine no longer exists');
+            }
+            continue;
+          }
           if (!job) break;
 
           // The machine may have disconnected while we were talking to the database

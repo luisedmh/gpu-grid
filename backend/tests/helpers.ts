@@ -49,13 +49,14 @@ export async function sessionCookie(user: {
 export async function loggedIn(app: Express, kind: TestUserKind = 'CLIENT') {
   const user = await createUser(kind);
   const cookie = await sessionCookie(user);
-  const as = (method: 'get' | 'post' | 'delete', path: string) =>
+  const as = (method: 'get' | 'post' | 'patch' | 'delete', path: string) =>
     request(app)[method](path).set('Cookie', cookie);
   return {
     user,
     cookie,
     get: (path: string) => as('get', path),
     post: (path: string) => as('post', path),
+    patch: (path: string) => as('patch', path),
     delete: (path: string) => as('delete', path),
   };
 }
