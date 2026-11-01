@@ -26,7 +26,8 @@ export const FINAL_STATUSES: readonly JobStatus[] = [
 export interface Job {
   id: string;
   name: string;
-  clientId: string;
+  /** Null for verification jobs, which the platform creates */
+  clientId: string | null;
   status: JobStatus;
   timeoutSeconds: number;
   compilerOutput: string | null;

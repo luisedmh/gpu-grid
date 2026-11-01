@@ -61,11 +61,20 @@ export async function loggedIn(app: Express, kind: TestUserKind = 'CLIENT') {
   };
 }
 
-/** Registers a machine for a provider and returns it with its secret token. */
-export async function createMachine(ownerId: string, name = 'test-machine') {
+/**
+ * Registers a machine for a provider and returns it with its secret token.
+ * It is already verified unless told otherwise, so it gets users' jobs straight away.
+ */
+export async function createMachine(ownerId: string, name = 'test-machine', verified = true) {
   const { token, hash, prefix } = generateMachineToken();
   const machine = await prisma.machine.create({
-    data: { name, ownerId, tokenHash: hash, tokenPrefix: prefix },
+    data: {
+      name,
+      ownerId,
+      tokenHash: hash,
+      tokenPrefix: prefix,
+      verifiedAt: verified ? new Date() : null,
+    },
   });
   return { machine, token };
 }

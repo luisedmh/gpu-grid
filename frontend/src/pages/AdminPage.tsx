@@ -1,4 +1,4 @@
-import { Coins, Loader2, Shield, ShieldOff, Trash2, X } from 'lucide-react';
+import { Coins, Loader2, RotateCcw, Shield, ShieldOff, Trash2, X } from 'lucide-react';
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import {
@@ -7,8 +7,10 @@ import {
   listAllJobs,
   listAllMachines,
   listUsers,
+  reinstateMachine,
   removeMachine,
   setAdmin,
+  type AdminMachine,
   type AdminUser,
 } from '../api/admin.ts';
 import { errorMessage } from '../api/http.ts';
@@ -110,7 +112,11 @@ function OverviewTab() {
               value={`${data.machines.online} / ${data.machines.registered}`}
               tone="text-emerald-600"
             />
-            <StatCard label="Machines busy" value={data.machines.busy} tone="text-amber-600" />
+            <StatCard
+              label="Machines busy / suspended"
+              value={`${data.machines.busy} / ${data.machines.suspended}`}
+              tone="text-amber-600"
+            />
             <StatCard
               label="Jobs waiting or running"
               value={data.jobs.PENDING + data.jobs.COMPILING + data.jobs.QUEUED + data.jobs.RUNNING}
@@ -319,6 +325,19 @@ function GiveCreditsDialog({
 function MachinesTab() {
   const { data, error, reload } = useLiveData(listAllMachines);
 
+  async function handleReinstate(machine: AdminMachine) {
+    const ok = window.confirm(
+      `Reinstate "${machine.name}"? It can connect again and must pass a new verification job.`,
+    );
+    if (!ok) return;
+    try {
+      await reinstateMachine(machine.id);
+      reload();
+    } catch (err) {
+      window.alert(errorMessage(err));
+    }
+  }
+
   async function handleRemove(id: string, name: string) {
     if (!window.confirm(`Remove "${name}"? Its agent is disconnected and its token stops working.`))
       return;
@@ -333,8 +352,10 @@ function MachinesTab() {
   return (
     <Loading data={data} error={error}>
       {data && (
-        <Table headers={['Machine', 'Owner', 'State', 'GPUs', 'Jobs run', 'Last seen', '']}>
-          {data.length === 0 && <EmptyRow columns={7} text="No machines registered yet." />}
+        <Table
+          headers={['Machine', 'Owner', 'State', 'Trust', 'GPUs', 'Jobs run', 'Last seen', '']}
+        >
+          {data.length === 0 && <EmptyRow columns={8} text="No machines registered yet." />}
           {data.map((machine) => (
             <tr key={machine.id} className="border-t border-slate-100">
               <td className="px-4 py-3">
@@ -346,7 +367,23 @@ function MachinesTab() {
                 <div className="text-xs text-slate-500">{machine.owner.email}</div>
               </td>
               <td className="px-4 py-3">
-                <MachineState online={machine.online} busy={machine.busy} />
+                <MachineState
+                  online={machine.online}
+                  busy={machine.busy}
+                  suspended={machine.suspendedAt !== null}
+                />
+              </td>
+              <td className="px-4 py-3 text-xs">
+                {machine.suspendedAt ? (
+                  <span className="text-red-600">{machine.suspensionReason}</span>
+                ) : machine.verifiedAt ? (
+                  <span className="text-emerald-700">Verified</span>
+                ) : (
+                  <span className="text-amber-700">Not verified yet</span>
+                )}
+                <div className="text-slate-400">
+                  {machine.checksPassed} passed · {machine.checksFailed} failed
+                </div>
               </td>
               <td className="px-4 py-3 text-xs text-slate-600">
                 {machine.gpus.map((gpu) => gpu.name).join(', ') || '—'}
@@ -359,7 +396,12 @@ function MachinesTab() {
                     ? formatRelativeTime(machine.lastSeenAt)
                     : 'Never'}
               </td>
-              <td className="px-4 py-3 text-right">
+              <td className="px-4 py-3 text-right whitespace-nowrap">
+                {machine.suspendedAt && (
+                  <IconButton title="Reinstate machine" onClick={() => handleReinstate(machine)}>
+                    <RotateCcw className="size-4" />
+                  </IconButton>
+                )}
                 <IconButton
                   title="Remove machine"
                   danger
@@ -395,7 +437,13 @@ function JobsTab() {
                 <div className="font-semibold">{job.name}</div>
                 <div className="font-mono text-[11px] text-slate-400">{job.id.slice(0, 8)}</div>
               </td>
-              <td className="px-4 py-3">{job.client.name}</td>
+              <td className="px-4 py-3">
+                {job.client ? (
+                  job.client.name
+                ) : (
+                  <span className="text-slate-500 italic">Verification</span>
+                )}
+              </td>
               <td className="px-4 py-3 text-slate-600">{job.machine?.name ?? '—'}</td>
               <td className="px-4 py-3">
                 <JobStatusBadge status={job.status} />
@@ -442,12 +490,22 @@ function EmptyRow({ columns, text }: { columns: number; text: string }) {
   );
 }
 
-function MachineState({ online, busy }: { online: boolean; busy: boolean }) {
-  const { label, className } = !online
-    ? { label: 'Offline', className: 'bg-slate-100 text-slate-500' }
-    : busy
-      ? { label: 'Busy', className: 'bg-amber-50 text-amber-600' }
-      : { label: 'Idle', className: 'bg-emerald-50 text-emerald-600' };
+function MachineState({
+  online,
+  busy,
+  suspended,
+}: {
+  online: boolean;
+  busy: boolean;
+  suspended: boolean;
+}) {
+  const { label, className } = suspended
+    ? { label: 'Suspended', className: 'bg-red-50 text-red-600' }
+    : !online
+      ? { label: 'Offline', className: 'bg-slate-100 text-slate-500' }
+      : busy
+        ? { label: 'Busy', className: 'bg-amber-50 text-amber-600' }
+        : { label: 'Idle', className: 'bg-emerald-50 text-emerald-600' };
   return (
     <span
       className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold ${className}`}

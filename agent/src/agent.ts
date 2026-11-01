@@ -40,6 +40,7 @@ let reconnectAttempts = 0;
 /** Close codes the backend uses when this agent must not reconnect. */
 const CLOSE_MACHINE_REMOVED = 4001;
 const CLOSE_REPLACED = 4002;
+const CLOSE_SUSPENDED = 4003;
 
 /** Connects to the backend and keeps reconnecting if the connection drops. */
 function connect() {
@@ -66,12 +67,18 @@ function connect() {
     }
   });
 
-  ws.on('close', (code) => {
+  ws.on('close', (code, reason) => {
     if (code === CLOSE_MACHINE_REMOVED) {
       stop('This machine was removed from the platform. Register it again to rejoin.');
     }
     if (code === CLOSE_REPLACED) {
       stop('Another agent connected with this same token. Stopping this one.');
+    }
+    if (code === CLOSE_SUSPENDED) {
+      stop(
+        `This machine was suspended: ${reason.toString() || 'it failed a verification job.'}`,
+        'An administrator can reinstate it once the problem is solved.',
+      );
     }
     // Wait longer after each failed attempt (1 s, 2 s, 4 s... up to 30 s)
     const delay = Math.min(30_000, 1000 * 2 ** reconnectAttempts);
@@ -86,6 +93,12 @@ function connect() {
       stop(
         'The backend does not know this token. Check AGENT_TOKEN,',
         'or register the machine again in the web (My machines).',
+      );
+    }
+    if (res.statusCode === 403) {
+      stop(
+        'This machine is suspended because it failed a verification job.',
+        'An administrator can reinstate it once the problem is solved.',
       );
     }
     console.error(`Unexpected response from the backend: HTTP ${res.statusCode}`);

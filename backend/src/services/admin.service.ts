@@ -12,10 +12,12 @@ import { grantCredits } from './credits.service.js';
 
 /** Figures for the overview: users, machines, jobs and the money. */
 export async function getOverview(live: AgentSummary[]) {
-  const [users, machines, statusGroups, balances, charged, earned] = await Promise.all([
+  const [users, machines, suspended, statusGroups, balances, charged, earned] = await Promise.all([
     prisma.user.count(),
     prisma.machine.count(),
-    prisma.job.groupBy({ by: ['status'], _count: { _all: true } }),
+    prisma.machine.count({ where: { suspendedAt: { not: null } } }),
+    // Users' jobs only: verification jobs are not part of the business
+    prisma.job.groupBy({ by: ['status'], where: { kind: 'CLIENT' }, _count: { _all: true } }),
     prisma.user.aggregate({ _sum: { balance: true } }),
     prisma.job.aggregate({ _sum: { costCredits: true } }),
     prisma.creditMovement.aggregate({ where: { type: 'EARNING' }, _sum: { amount: true } }),
@@ -35,6 +37,7 @@ export async function getOverview(live: AgentSummary[]) {
       registered: machines,
       online: live.length,
       busy: live.filter((a) => a.busy).length,
+      suspended,
     },
     jobs,
     credits: {
@@ -95,6 +98,11 @@ export async function listAllMachines(live: AgentSummary[]) {
       tokenPrefix: true,
       createdAt: true,
       lastSeenAt: true,
+      verifiedAt: true,
+      checksPassed: true,
+      checksFailed: true,
+      suspendedAt: true,
+      suspensionReason: true,
       owner: { select: { id: true, name: true, email: true } },
       _count: { select: { jobs: true } },
     },
@@ -127,6 +135,7 @@ export function listAllJobs({ status, limit }: AdminJobsQuery) {
     select: {
       id: true,
       name: true,
+      kind: true,
       status: true,
       durationMs: true,
       costCredits: true,

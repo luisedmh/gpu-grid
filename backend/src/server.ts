@@ -9,6 +9,7 @@ import { createDockerCompiler } from './compiler/docker-compiler.js';
 import { CLIENT_WS_PATH, createClientServer } from './realtime/client-server.js';
 import { routeUpgrades } from './realtime/upgrade.js';
 import { recoverRunningJobs } from './services/execution.service.js';
+import { Verifier } from './verification/verifier.js';
 
 if (!config.jwtSecret) {
   console.error('JWT_SECRET is not set. Add it to backend/.env (see .env.example).');
@@ -27,6 +28,13 @@ const compileQueue = new CompileQueue(config.compileConcurrency, async (jobId) =
   await compileJob(jobId, { compiler, jobsDir: config.jobsDir });
   void scheduler.dispatch();
 });
+
+// Tests new machines and spot-checks the others with verification jobs
+new Verifier({
+  scheduler,
+  compile: (jobId) => compileQueue.add(jobId),
+  spotCheckRate: config.spotCheckRate,
+}).attach();
 
 // After a restart: running jobs go back to the queue, pending ones are compiled again
 const requeued = await recoverRunningJobs();

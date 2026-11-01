@@ -1,4 +1,17 @@
-import { Check, Copy, Cpu, KeyRound, Loader2, Plus, Server, Trash2, X } from 'lucide-react';
+import {
+  Check,
+  Copy,
+  Cpu,
+  KeyRound,
+  Loader2,
+  Plus,
+  Server,
+  ShieldAlert,
+  ShieldCheck,
+  ShieldQuestion,
+  Trash2,
+  X,
+} from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { errorMessage } from '../api/http.ts';
 import { createMachine, deleteMachine, type Machine } from '../api/machines.ts';
@@ -107,8 +120,15 @@ export function MachinesPage() {
 }
 
 function MachineCard({ machine, onDelete }: { machine: Machine; onDelete: () => void }) {
-  const state = !machine.online ? 'offline' : machine.busy ? 'busy' : 'idle';
+  const state = machine.suspendedAt
+    ? 'suspended'
+    : !machine.online
+      ? 'offline'
+      : machine.busy
+        ? 'busy'
+        : 'idle';
   const badge = {
+    suspended: { label: 'Suspended', className: 'bg-red-50 text-red-600' },
     offline: { label: 'Offline', className: 'bg-slate-100 text-slate-500' },
     busy: { label: 'Busy', className: 'bg-amber-50 text-amber-600' },
     idle: { label: 'Idle', className: 'bg-emerald-50 text-emerald-600' },
@@ -139,8 +159,10 @@ function MachineCard({ machine, onDelete }: { machine: Machine; onDelete: () => 
         </span>
       </header>
 
+      <TrustNote machine={machine} />
+
       <ul className="flex-1 divide-y divide-slate-100">
-        {!machine.online && (
+        {!machine.online && !machine.suspendedAt && (
           <li className="px-4 py-3 text-sm text-slate-500">
             Start the agent on this machine to offer its GPUs.
           </li>
@@ -185,6 +207,38 @@ function MachineCard({ machine, onDelete }: { machine: Machine; onDelete: () => 
         </button>
       </footer>
     </article>
+  );
+}
+
+/** Whether the platform trusts this machine's results (see the verification jobs). */
+function TrustNote({ machine }: { machine: Machine }) {
+  if (machine.suspendedAt) {
+    return (
+      <div className="flex gap-2 border-b border-red-100 bg-red-50 px-4 py-2.5 text-xs text-red-700">
+        <ShieldAlert className="size-4 shrink-0" />
+        <span>
+          <b>Suspended.</b> {machine.suspensionReason} It cannot take jobs until an administrator
+          reinstates it.
+        </span>
+      </div>
+    );
+  }
+  if (!machine.verifiedAt) {
+    return (
+      <div className="flex gap-2 border-b border-amber-100 bg-amber-50 px-4 py-2.5 text-xs text-amber-800">
+        <ShieldQuestion className="size-4 shrink-0" />
+        <span>
+          <b>Not verified yet.</b> When it connects it runs a short test job with a known answer; it
+          gets users&apos; jobs once it passes.
+        </span>
+      </div>
+    );
+  }
+  return (
+    <div className="flex items-center gap-2 border-b border-emerald-100 bg-emerald-50 px-4 py-2 text-xs text-emerald-700">
+      <ShieldCheck className="size-4 shrink-0" />
+      Verified · {machine.checksPassed} check{machine.checksPassed === 1 ? '' : 's'} passed
+    </div>
   );
 }
 
@@ -273,7 +327,6 @@ function AddMachineDialog({
   );
 }
 
-/** Shows the token of a new machine. It is the only time it can be seen. */
 type InstallMethod = 'docker' | 'source';
 
 /** The one command that installs and starts the agent on a machine with Docker. */

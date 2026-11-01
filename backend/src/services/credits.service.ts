@@ -98,7 +98,8 @@ export async function settleJob(
   const changed: string[] = [];
 
   const refund = job.reservedCredits - charged;
-  if (refund > 0) {
+  // (Verification jobs have no client and reserve nothing)
+  if (refund > 0 && job.clientId) {
     await move(tx, job.clientId, 'REFUND', refund, jobId);
     changed.push(job.clientId);
   }

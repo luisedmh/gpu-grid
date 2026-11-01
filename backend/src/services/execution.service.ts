@@ -8,15 +8,20 @@ import { gpuTimeCost, settleJob } from './credits.service.js';
 export const MAX_ATTEMPTS = 3;
 
 /**
- * Takes the oldest QUEUED job and marks it RUNNING on the given machine, atomically.
- * Returns null when there is nothing to run.
+ * Takes the next QUEUED job for a machine and marks it RUNNING, atomically.
+ * Verification jobs prepared for that machine go first. Users' jobs, oldest first,
+ * only go to machines that have passed a verification. Returns null when there is nothing.
  */
-export async function claimNextJob(machineId: string) {
+export async function claimNextJob(machineId: string, verified = true) {
   // Another process may claim the same job first; then we simply try the next one
   for (let tries = 0; tries < 5; tries++) {
     const next = await prisma.job.findFirst({
-      where: { status: 'QUEUED' },
-      orderBy: { createdAt: 'asc' },
+      where: {
+        status: 'QUEUED',
+        OR: [{ targetMachineId: machineId }, ...(verified ? [{ kind: 'CLIENT' as const }] : [])],
+      },
+      // CHECK is declared after CLIENT, so "desc" puts verification jobs first
+      orderBy: [{ kind: 'desc' }, { createdAt: 'asc' }],
       select: { id: true },
     });
     if (!next) return null;

@@ -63,11 +63,28 @@ model Machine {
   createdAt   DateTime  @default(now())
   lastSeenAt  DateTime?
 
+  /// Trust: when it first passed a verification job, and how many it passed or failed
+  verifiedAt       DateTime?
+  checksPassed     Int       @default(0)
+  checksFailed     Int       @default(0)
+  /// A suspended machine cannot connect until an administrator reinstates it
+  suspendedAt      DateTime?
+  suspensionReason String?
+
   ownerId String
   owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  jobs    Job[]
+  /// Jobs it ran
+  jobs    Job[]  @relation("RanOn")
+  /// Verification jobs prepared for it
+  checks  Job[]  @relation("CheckFor")
 
   @@index([ownerId])
+}
+
+/// A job submitted by a user, or a verification job prepared by the platform.
+enum JobKind {
+  CLIENT
+  CHECK
 }
 
 enum JobStatus {
@@ -88,13 +105,20 @@ model Job {
   status         JobStatus @default(PENDING)
   timeoutSeconds Int       @default(60)
 
-  // Owner
-  clientId String
-  client   User   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  kind           JobKind   @default(CLIENT)
+
+  /// Who submitted it (verification jobs have no client: the platform makes them)
+  clientId String?
+  client   User?   @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   /// Machine that ran (or is running) the job
   machineId String?
-  machine   Machine? @relation(fields: [machineId], references: [id], onDelete: SetNull)
+  machine   Machine? @relation("RanOn", fields: [machineId], references: [id], onDelete: SetNull)
+
+  /// Verification jobs only: the machine being checked, and the answer it must give
+  targetMachineId String?
+  targetMachine   Machine? @relation("CheckFor", fields: [targetMachineId], references: [id], onDelete: Cascade)
+  expectedOutput  String?
   compilerOutput String?
   binaryPath     String?
   attempts   Int     @default(0)
