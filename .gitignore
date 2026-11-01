@@ -20,3 +20,6 @@ coverage/
 .DS_Store
 
 **/src/generated/
+
+# Job folders (sources and compiled binaries)
+backend/data/
