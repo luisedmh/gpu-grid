@@ -50,6 +50,31 @@ runtime Docker does not have. Better not to take jobs than to fail them all.
 - **Every message from an agent is validated** (Zod) before it is used.
 - **Credits** are reserved atomically, so nobody can spend credits they do not have.
 
+### Against dishonest providers: verification jobs
+
+A provider could return made-up output and still get paid. The platform cannot
+recompute every job (that would need its own GPU), so it **spot-checks**
+(`backend/src/verification/`):
+
+- **Verification jobs** are small CUDA programs with random parameters that compute
+  a checksum with integer arithmetic. The backend works out the right answer on the
+  CPU with exactly the same arithmetic (checked against a C version of the kernel),
+  so it knows what the GPU must print. The parameters change every time, so answers
+  cannot be remembered, and to the agent they look like any other job.
+- **A new machine gets one as soon as it connects, and no users' jobs until it passes.**
+- **After users' jobs, a machine is sometimes checked again** (`SPOT_CHECK_RATE`,
+  10 % of jobs by default), unannounced: behaving well at first and cheating later
+  does not work.
+- **A wrong answer (or none) suspends the machine**: it is disconnected, cannot
+  connect again, and its owner sees why. An administrator can reinstate it, and it
+  must then pass a new check.
+- Verification jobs cost nothing and pay nothing, and users never see them.
+
+This makes cheating risky, not impossible: a provider who could tell verification
+jobs apart from real ones (for example by analysing every binary) could answer
+those correctly and cheat on the rest. Running some real jobs twice on different
+machines and comparing would close that gap, at the cost of paying for them twice.
+
 ## Stronger isolation with gVisor (optional)
 
 A normal container shares the host's Linux kernel: a bug in the kernel or in the
@@ -88,4 +113,4 @@ Being honest about the limits is part of the design:
   not addressed.
 - **Docker itself is trusted.** The agent needs access to Docker, which is equivalent
   to root on the provider's machine; the provider must trust the agent's code.
-- **Results are not verified**: a dishonest provider could return made-up output.
+- **Results are spot-checked, not proven correct** (see "verification jobs" above).
