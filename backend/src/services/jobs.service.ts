@@ -2,22 +2,33 @@ import type { SessionUser } from '../auth/session.js';
 import { prisma } from '../lib/prisma.js';
 import { NotFoundError } from '../lib/http-error.js';
 import { JobStatus } from '../generated/prisma/enums.js';
+import { creditEvents } from '../realtime/credit-events.js';
 import { jobEvents } from '../realtime/job-events.js';
 import type { CreateJobInput, ListJobsQuery } from '../schemas/jobs.schema.js';
+import { maxJobCost, reserveForJob } from './credits.service.js';
 import { jobSummaryFields, publicJobFields } from './job-fields.js';
 
-/** Stores a new job. It starts as PENDING, waiting to be compiled. */
-/** Admins see every job; everyone else only their own. */
-function visibleTo(viewer: SessionUser) {
-  return viewer.role === 'ADMIN' ? {} : { clientId: viewer.id };
+/** A single job can be opened by its owner, or by an admin. */
+function canOpen(viewer: SessionUser) {
+  return viewer.isAdmin ? {} : { clientId: viewer.id };
 }
 
+/**
+ * Stores a new job, PENDING until it is compiled, and reserves the most it can
+ * cost. Both happen together or not at all: without credits, no job.
+ */
 export async function createJob(input: CreateJobInput, clientId: string) {
-  const job = await prisma.job.create({
-    data: { ...input, clientId },
-    select: { id: true, status: true, createdAt: true },
+  const reservedCredits = maxJobCost(input.timeoutSeconds);
+  const job = await prisma.$transaction(async (tx) => {
+    const created = await tx.job.create({
+      data: { ...input, clientId, reservedCredits },
+      select: { id: true, status: true, reservedCredits: true, createdAt: true },
+    });
+    await reserveForJob(tx, clientId, created.id, reservedCredits);
+    return created;
   });
   jobEvents.notify(job.id);
+  creditEvents.notify(clientId);
   return job;
 }
 
@@ -27,7 +38,7 @@ export async function createJob(input: CreateJobInput, clientId: string) {
  */
 export async function getJob(id: string, viewer: SessionUser) {
   const job = await prisma.job.findFirst({
-    where: { id, ...visibleTo(viewer) },
+    where: { id, ...canOpen(viewer) },
     select: publicJobFields,
   });
   if (!job) throw new NotFoundError(`Job ${id} not found`);
@@ -35,11 +46,12 @@ export async function getJob(id: string, viewer: SessionUser) {
 }
 
 /**
- * Most recent jobs first, optionally filtered by status, plus how many jobs
- * there are in each status (over all the viewer's jobs, not just this page).
+ * The viewer's own jobs, most recent first, optionally filtered by status, plus how
+ * many they have in each status (over all of them, not just this page).
+ * Admins also see only their own here: everyone's jobs are in the admin panel.
  */
 export async function listJobs({ status, limit }: ListJobsQuery, viewer: SessionUser) {
-  const visible = visibleTo(viewer);
+  const visible = { clientId: viewer.id };
   const [jobs, groups] = await Promise.all([
     prisma.job.findMany({
       where: status ? { ...visible, status } : visible,

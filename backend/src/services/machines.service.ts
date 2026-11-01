@@ -13,11 +13,6 @@ const machineFields = {
   owner: { select: { id: true, name: true, email: true } },
 } as const;
 
-/** Admins see every machine; providers only their own. */
-function visibleTo(viewer: SessionUser) {
-  return viewer.role === 'ADMIN' ? {} : { ownerId: viewer.id };
-}
-
 /**
  * Registers a machine and returns its token. The token is shown this one time:
  * only its hash is stored, so not even the platform can show it again.
@@ -34,7 +29,7 @@ export async function createMachine(name: string, ownerId: string) {
 /** The viewer's machines, each combined with its live state if it is connected. */
 export async function listMachines(viewer: SessionUser, live: AgentSummary[]) {
   const machines = await prisma.machine.findMany({
-    where: visibleTo(viewer),
+    where: { ownerId: viewer.id },
     orderBy: { createdAt: 'asc' },
     select: machineFields,
   });
@@ -53,8 +48,8 @@ export async function listMachines(viewer: SessionUser, live: AgentSummary[]) {
   });
 }
 
-/** Deletes a machine of the viewer (or any, for admins). */
+/** Deletes one of the viewer's machines. */
 export async function deleteMachine(id: string, viewer: SessionUser) {
-  const { count } = await prisma.machine.deleteMany({ where: { id, ...visibleTo(viewer) } });
+  const { count } = await prisma.machine.deleteMany({ where: { id, ownerId: viewer.id } });
   if (count === 0) throw new NotFoundError('Machine not found');
 }

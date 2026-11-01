@@ -10,7 +10,6 @@ const alice = {
   name: 'Alice',
   email: 'Alice@Example.com',
   password: 'correct horse battery',
-  role: 'CLIENT',
 };
 
 beforeEach(async () => {
@@ -35,7 +34,7 @@ describe('register', () => {
     expect(response.body).toMatchObject({
       name: 'Alice',
       email: 'alice@example.com',
-      role: 'CLIENT',
+      isAdmin: false,
     });
     expect(response.body).not.toHaveProperty('passwordHash');
 
@@ -71,7 +70,7 @@ describe('register', () => {
       .send({ ...alice, password: '123' });
     const admin = await request(app)
       .post('/api/auth/register')
-      .send({ ...alice, role: 'ADMIN' });
+      .send({ ...alice, isAdmin: true });
 
     expect(short.status).toBe(400);
     expect(admin.status).toBe(400);
@@ -90,7 +89,7 @@ describe('login and session', () => {
 
     expect(login.status).toBe(200);
     const me = await request(app).get('/api/auth/me').set('Cookie', cookieFrom(login));
-    expect(me.body).toMatchObject({ name: 'Alice', role: 'CLIENT' });
+    expect(me.body).toMatchObject({ name: 'Alice', isAdmin: false });
   });
 
   it('gives the same answer for a wrong password and an unknown email', async () => {

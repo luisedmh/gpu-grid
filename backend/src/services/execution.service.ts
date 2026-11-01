@@ -1,6 +1,8 @@
 import { prisma } from '../lib/prisma.js';
 import type { JobResult } from '../agents/protocol.js';
+import { creditEvents } from '../realtime/credit-events.js';
 import { jobEvents } from '../realtime/job-events.js';
+import { gpuTimeCost, settleJob } from './credits.service.js';
 
 /** A job may be retried on another provider this many times before it fails for good. */
 export const MAX_ATTEMPTS = 3;
@@ -39,23 +41,33 @@ export async function claimNextJob(machineId: string) {
   return null;
 }
 
-/** Stores what the provider reported and moves the job to its final state. */
+/**
+ * Stores what the provider reported, moves the job to its final state and
+ * charges the GPU time it used.
+ */
 export async function saveResult(jobId: string, result: JobResult) {
   const status = result.timedOut ? 'TIMED_OUT' : result.exitCode === 0 ? 'COMPLETED' : 'FAILED';
+  // No exit code without a timeout means the agent could not run the program at all:
+  // the client is not charged for the provider's problem
+  const cost = result.exitCode === null && !result.timedOut ? 0 : gpuTimeCost(result.durationMs);
 
-  await prisma.job.updateMany({
-    // Only a RUNNING job can finish; late or duplicated results are ignored
-    where: { id: jobId, status: 'RUNNING' },
-    data: {
-      status,
-      exitCode: result.exitCode,
-      stdout: result.stdout,
-      stderr: result.stderr,
-      durationMs: result.durationMs,
-      finishedAt: new Date(),
-    },
+  const changed = await prisma.$transaction(async (tx) => {
+    const finished = await tx.job.updateMany({
+      // Only a RUNNING job can finish; late or duplicated results are ignored
+      where: { id: jobId, status: 'RUNNING' },
+      data: {
+        status,
+        exitCode: result.exitCode,
+        stdout: result.stdout,
+        stderr: result.stderr,
+        durationMs: result.durationMs,
+        finishedAt: new Date(),
+      },
+    });
+    return finished.count === 1 ? settleJob(tx, jobId, cost) : [];
   });
   jobEvents.notify(jobId);
+  creditEvents.notify(...changed);
 }
 
 /**
@@ -67,14 +79,19 @@ export async function releaseJob(jobId: string, reason: string) {
   if (!job) return;
 
   if (job.attempts >= MAX_ATTEMPTS) {
-    await prisma.job.updateMany({
-      where: { id: jobId, status: 'RUNNING' },
-      data: {
-        status: 'FAILED',
-        stderr: `${reason} Gave up after ${job.attempts} attempts.`,
-        finishedAt: new Date(),
-      },
+    // The job never finished anywhere, so it costs nothing: all credits go back
+    const changed = await prisma.$transaction(async (tx) => {
+      const failed = await tx.job.updateMany({
+        where: { id: jobId, status: 'RUNNING' },
+        data: {
+          status: 'FAILED',
+          stderr: `${reason} Gave up after ${job.attempts} attempts.`,
+          finishedAt: new Date(),
+        },
+      });
+      return failed.count === 1 ? settleJob(tx, jobId, 0) : [];
     });
+    creditEvents.notify(...changed);
   } else {
     await prisma.job.updateMany({
       where: { id: jobId, status: 'RUNNING' },

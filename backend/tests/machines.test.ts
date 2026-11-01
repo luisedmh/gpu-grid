@@ -1,6 +1,7 @@
 import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
+import request from 'supertest';
 import WebSocket from 'ws';
 import { AGENT_WS_PATH, createAgentServer } from '../src/agents/agent-server.js';
 import { Scheduler } from '../src/agents/scheduler.js';
@@ -46,25 +47,30 @@ describe('registering machines', () => {
     expect(a.body.token).not.toBe(b.body.token);
   });
 
-  it('is only for providers and admins', async () => {
+  it('is open to every account: the same person can submit jobs and offer machines', async () => {
     const client = await loggedIn(app, 'CLIENT');
-    const response = await client.post('/api/machines').send({ name: 'nope' });
-    expect(response.status).toBe(403);
+    const response = await client.post('/api/machines').send({ name: 'also mine' });
+    expect(response.status).toBe(201);
+  });
+
+  it('requires logging in', async () => {
+    const response = await request(app).post('/api/machines').send({ name: 'nope' });
+    expect(response.status).toBe(401);
   });
 });
 
 describe('listing and deleting machines', () => {
-  it('shows each provider only their own machines, and admins all of them', async () => {
+  it('shows everyone only their own machines, admins included', async () => {
     await provider.post('/api/machines').send({ name: 'mine' });
     const other = await loggedIn(app, 'PROVIDER');
     await other.post('/api/machines').send({ name: 'theirs' });
     const admin = await loggedIn(app, 'ADMIN');
 
     const mine = await provider.get('/api/machines');
-    const all = await admin.get('/api/machines');
+    const adminsOwn = await admin.get('/api/machines');
 
     expect(mine.body.map((m: { name: string }) => m.name)).toEqual(['mine']);
-    expect(all.body).toHaveLength(2);
+    expect(adminsOwn.body).toHaveLength(0);
     expect(mine.body[0]).toMatchObject({ online: false, busy: false, lastSeenAt: null });
   });
 

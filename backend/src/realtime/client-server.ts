@@ -3,6 +3,7 @@ import { WebSocketServer, type WebSocket } from 'ws';
 import type { AgentSummary } from '../agents/scheduler.js';
 import { readSessionToken, SESSION_COOKIE, type SessionUser } from '../auth/session.js';
 import { agentEvents } from './agent-events.js';
+import { creditEvents } from './credit-events.js';
 import { jobEvents, type PublicJob } from './job-events.js';
 import { keepAlive, type UpgradeHandler } from './upgrade.js';
 
@@ -10,11 +11,13 @@ export const CLIENT_WS_PATH = '/ws/client';
 
 /** Messages pushed to browsers. */
 export type ClientMessage =
-  { type: 'job-updated'; job: PublicJob } | { type: 'agents-updated'; agents: AgentSummary[] };
+  | { type: 'job-updated'; job: PublicJob }
+  | { type: 'agents-updated'; agents: AgentSummary[] }
+  | { type: 'credits-updated'; balance: number };
 
 /**
  * WebSocket endpoint for logged-in browsers. Each change is pushed only to
- * the people allowed to see it: a job to its owner, a machine to its provider.
+ * the people allowed to see it: a job to its owner, a machine to its owner.
  * Admins receive everything.
  */
 export function createClientServer(options: { heartbeatMs?: number } = {}): UpgradeHandler {
@@ -31,19 +34,21 @@ export function createClientServer(options: { heartbeatMs?: number } = {}): Upgr
   };
 
   jobEvents.on('job-updated', (job) =>
-    sendTo((user) => user.role === 'ADMIN' || user.id === job.clientId, {
+    sendTo((user) => user.isAdmin || user.id === job.clientId, {
       type: 'job-updated',
       job,
     }),
+  );
+  // A balance is private, even from admins
+  creditEvents.on('credits-updated', (userId, balance) =>
+    sendTo((user) => user.id === userId, { type: 'credits-updated', balance }),
   );
   // Each provider only hears about their own machines
   agentEvents.on('agents-updated', (agents) => {
     for (const client of wss.clients) {
       const user = users.get(client);
       if (!user || client.readyState !== client.OPEN) continue;
-      if (user.role !== 'ADMIN' && user.role !== 'PROVIDER') continue;
-      const visible =
-        user.role === 'ADMIN' ? agents : agents.filter((agent) => agent.ownerId === user.id);
+      const visible = user.isAdmin ? agents : agents.filter((agent) => agent.ownerId === user.id);
       client.send(JSON.stringify({ type: 'agents-updated', agents: visible }));
     }
   });

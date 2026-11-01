@@ -1,6 +1,5 @@
 import { SignJWT, jwtVerify } from 'jose';
 import { config } from '../config.js';
-import type { Role } from '../generated/prisma/enums.js';
 
 /** Name of the cookie that carries the session. */
 export const SESSION_COOKIE = 'gpugrid_session';
@@ -11,18 +10,18 @@ export interface SessionUser {
   id: string;
   name: string;
   email: string;
-  role: Role;
+  isAdmin: boolean;
 }
 
 const secret = () => new TextEncoder().encode(config.jwtSecret);
 
 /**
- * Creates a JWT: a signed piece of text that says "this is user X with role Y,
+ * Creates a JWT: a signed piece of text that says "this is user X (an admin or not),
  * valid until Z". The server can later check the signature with its secret,
  * so nobody can forge or modify a token without knowing that secret.
  */
 export function createSessionToken(user: SessionUser): Promise<string> {
-  return new SignJWT({ name: user.name, email: user.email, role: user.role })
+  return new SignJWT({ name: user.name, email: user.email, isAdmin: user.isAdmin })
     .setProtectedHeader({ alg: 'HS256' })
     .setSubject(user.id)
     .setIssuedAt()
@@ -40,7 +39,8 @@ export async function readSessionToken(token: string | undefined): Promise<Sessi
       id: payload.sub,
       name: String(payload.name),
       email: String(payload.email),
-      role: payload.role as Role,
+      // Sessions from before unified accounts carry no isAdmin: they are not admins
+      isAdmin: payload.isAdmin === true,
     };
   } catch {
     return null;

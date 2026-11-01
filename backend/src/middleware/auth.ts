@@ -1,7 +1,6 @@
 import type { NextFunction, Request, Response } from 'express';
 import { parseCookie } from 'cookie';
 import { readSessionToken, SESSION_COOKIE } from '../auth/session.js';
-import type { Role } from '../generated/prisma/enums.js';
 import { HttpError } from '../lib/http-error.js';
 
 /** Reads the session cookie of any request and, if valid, sets req.user. */
@@ -12,13 +11,19 @@ export async function authenticate(req: Request, _res: Response, next: NextFunct
   next();
 }
 
-/** Only lets through logged-in users (with one of the given roles, if any). */
-export function requireAuth(...roles: Role[]) {
+/** Only lets through logged-in users. */
+export function requireAuth() {
   return (req: Request, _res: Response, next: NextFunction) => {
     if (!req.user) throw new HttpError(401, 'You need to log in');
-    if (roles.length > 0 && !roles.includes(req.user.role)) {
-      throw new HttpError(403, 'You do not have permission to do this');
-    }
+    next();
+  };
+}
+
+/** Only lets through administrators. */
+export function requireAdmin() {
+  return (req: Request, _res: Response, next: NextFunction) => {
+    if (!req.user) throw new HttpError(401, 'You need to log in');
+    if (!req.user.isAdmin) throw new HttpError(403, 'You do not have permission to do this');
     next();
   };
 }

@@ -9,25 +9,47 @@ datasource db {
   provider = "postgresql"
 }
 
-/// What a user can do on the platform.
-enum Role {
-  CLIENT   // submits jobs
-  PROVIDER // offers GPU machines
-  ADMIN    // sees and manages everything
-}
-
-/// A person with an account.
+/// A person with an account. Every account can both submit jobs and offer machines.
 model User {
   id           String   @id @default(uuid())
   name         String
   email        String   @unique
   /// Never the password itself: a salted scrypt hash of it
   passwordHash String
-  role         Role     @default(CLIENT)
+  /// Administrators see and manage the whole platform
+  isAdmin      Boolean  @default(false)
   createdAt    DateTime @default(now())
+  /// Credits available now. Always equal to the sum of the user's movements.
+  balance      Int      @default(0)
 
-  jobs     Job[]
-  machines Machine[]
+  jobs           Job[]
+  machines       Machine[]
+  creditMovements CreditMovement[]
+}
+
+/// Why a user's balance changed.
+enum CreditMovementType {
+  WELCOME // free credits given to new clients
+  GRANT   // credits added by an administrator
+  RESERVE // a job holds the most it can cost, while it waits and runs
+  REFUND  // the part of the reservation a finished job did not use
+  EARNING // a provider's share of a job their machine ran
+}
+
+/// One change of a user's balance. The list of movements is the user's statement.
+model CreditMovement {
+  id        String             @id @default(uuid())
+  type      CreditMovementType
+  /// Positive adds credits, negative takes them away
+  amount    Int
+  createdAt DateTime           @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobId  String?
+  job    Job?   @relation(fields: [jobId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
 }
 
 /// A computer registered by a provider to run jobs on its GPUs.
@@ -84,6 +106,13 @@ model Job {
   updatedAt  DateTime  @updatedAt
   startedAt  DateTime?
   finishedAt DateTime?
+
+  /// Credits held when the job was submitted: the most it can cost
+  reservedCredits Int  @default(0)
+  /// What the job finally cost, once finished
+  costCredits     Int?
+  creditMovements CreditMovement[]
+
   @@index([status])
   @@index([createdAt])
   @@index([clientId, createdAt])

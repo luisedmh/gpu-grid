@@ -5,6 +5,7 @@ import { authenticate } from './middleware/auth.js';
 import { errorHandler, notFoundHandler } from './middleware/error-handler.js';
 import { createAgentRouter } from './routes/agent.routes.js';
 import { authRouter } from './routes/auth.routes.js';
+import { creditsRouter } from './routes/credits.routes.js';
 import { healthRouter } from './routes/health.routes.js';
 import { createJobsRouter } from './routes/jobs.routes.js';
 import { createMachinesRouter } from './routes/machines.routes.js';
@@ -32,6 +33,7 @@ export function createApp(deps: AppDeps = {}) {
   app.use('/api/health', healthRouter);
   app.use('/api/auth', authRouter);
   app.use('/api/jobs', createJobsRouter(deps));
+  app.use('/api/credits', creditsRouter);
   app.use('/api/machines', createMachinesRouter(deps.scheduler));
   app.use('/api/agent', createAgentRouter());
 

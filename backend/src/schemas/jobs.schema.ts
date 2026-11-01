@@ -7,6 +7,7 @@ export const JOB_LIMITS = {
   sourceCodeMaxLength: 100_000,
   timeoutSecondsMin: 1,
   timeoutSecondsMax: 300,
+  timeoutSecondsDefault: 60,
 } as const;
 
 /** Body accepted by POST /api/jobs. */
@@ -18,7 +19,7 @@ export const createJobSchema = z.object({
     .int()
     .min(JOB_LIMITS.timeoutSecondsMin)
     .max(JOB_LIMITS.timeoutSecondsMax)
-    .optional(),
+    .default(JOB_LIMITS.timeoutSecondsDefault),
 });
 
 export type CreateJobInput = z.infer<typeof createJobSchema>;

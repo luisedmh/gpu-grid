@@ -125,11 +125,10 @@ describe('real-time job updates', () => {
     expect(stranger).toHaveLength(0);
   });
 
-  it('tells each provider only about their own machines', async () => {
+  it('tells each user only about their own machines', async () => {
     const owner = await createUser('PROVIDER');
     const ownerMessages = await connectClient(await sessionCookie(owner));
-    const otherProvider = await connectClient(await sessionCookie(await createUser('PROVIDER')));
-    const client = await connectClient(await sessionCookie(await createUser('CLIENT')));
+    const otherUser = await connectClient(await sessionCookie(await createUser('PROVIDER')));
     const scheduler = new Scheduler();
 
     scheduler.addAgent({
@@ -148,11 +147,8 @@ describe('real-time job updates', () => {
     await waitFor(() =>
       ownerMessages.some((m) => m.type === 'agents-updated' && m.agents.length === 0),
     );
-    // The other provider may hear that something changed, but never sees this machine
-    expect(otherProvider.every((m) => m.type === 'agents-updated' && m.agents.length === 0)).toBe(
-      true,
-    );
-    expect(client).toHaveLength(0);
+    // Other users may hear that something changed, but never see this machine
+    expect(otherUser.every((m) => m.type === 'agents-updated' && m.agents.length === 0)).toBe(true);
   });
 
   it('refuses browsers that are not logged in', async () => {
