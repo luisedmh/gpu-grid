@@ -1,0 +1,12 @@
+{
+  "name": "gpu-grid",
+  "private": true,
+  "description": "Distributed GPU computing platform: run CUDA code on other people's idle GPUs.",
+  "scripts": {
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "prettier": "^3.9.10"
+  }
+}

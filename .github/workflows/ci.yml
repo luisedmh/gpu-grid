@@ -1,7 +1,5 @@
 name: CI
 
-# When to run: on every PR targeting develop or main,
-# and on every push to them (i.e. after a merge)
 on:
   pull_request:
     branches: [develop, main]
@@ -9,15 +7,9 @@ on:
     branches: [develop, main]
 
 jobs:
-  backend:
-    name: Backend (lint, typecheck, test)
+  format:
+    name: Formatting (Prettier)
     runs-on: ubuntu-latest
-
-    # All "run" commands execute inside the backend folder
-    defaults:
-      run:
-        working-directory: backend
-
     steps:
       - name: Check out repository
         uses: actions/checkout@v5
@@ -25,7 +17,29 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v5
         with:
-          node-version-file: backend/.nvmrc
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check formatting
+        run: npm run format:check
+
+  backend:
+    name: Backend (lint, typecheck, test)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
           cache: npm
           cache-dependency-path: backend/package-lock.json
 
