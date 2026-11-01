@@ -1,0 +1,31 @@
+{
+  "name": "agent",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "tsx --test src/*.test.ts",
+    "build": "tsc",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "run-local": "tsx src/run-local.ts",
+    "start": "tsx src/agent.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^26.6.6",
+    "@types/ws": "^8.18.2",
+    "eslint": "^10.14.0",
+    "tsx": "^4.23.15",
+    "typescript": "~6.0.0",
+    "typescript-eslint": "^8.72.1"
+  },
+  "dependencies": {
+    "dotenv": "^18.0.9",
+    "ws": "^8.22.1"
+  }
+}

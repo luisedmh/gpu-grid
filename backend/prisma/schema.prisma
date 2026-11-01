@@ -1,0 +1,143 @@
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "esm"
+  importFileExtension = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// A person with an account. Every account can both submit jobs and offer machines.
+model User {
+  id           String   @id @default(uuid())
+  name         String
+  email        String   @unique
+  /// Never the password itself: a salted scrypt hash of it
+  passwordHash String
+  /// Administrators see and manage the whole platform
+  isAdmin      Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  /// Credits available now. Always equal to the sum of the user's movements.
+  balance      Int      @default(0)
+
+  jobs           Job[]
+  machines       Machine[]
+  creditMovements CreditMovement[]
+}
+
+/// Why a user's balance changed.
+enum CreditMovementType {
+  WELCOME // free credits given to new clients
+  GRANT   // credits added by an administrator
+  RESERVE // a job holds the most it can cost, while it waits and runs
+  REFUND  // the part of the reservation a finished job did not use
+  EARNING // a provider's share of a job their machine ran
+}
+
+/// One change of a user's balance. The list of movements is the user's statement.
+model CreditMovement {
+  id        String             @id @default(uuid())
+  type      CreditMovementType
+  /// Positive adds credits, negative takes them away
+  amount    Int
+  createdAt DateTime           @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobId  String?
+  job    Job?   @relation(fields: [jobId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+}
+
+/// A computer registered by a provider to run jobs on its GPUs.
+model Machine {
+  id          String    @id @default(uuid())
+  name        String
+  /// SHA-256 of the machine's secret token. The token itself is shown only once.
+  tokenHash   String    @unique
+  /// First characters of the token, so the owner can recognise it
+  tokenPrefix String
+  createdAt   DateTime  @default(now())
+  lastSeenAt  DateTime?
+
+  /// Trust: when it first passed a verification job, and how many it passed or failed
+  verifiedAt       DateTime?
+  checksPassed     Int       @default(0)
+  checksFailed     Int       @default(0)
+  /// A suspended machine cannot connect until an administrator reinstates it
+  suspendedAt      DateTime?
+  suspensionReason String?
+
+  ownerId String
+  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  /// Jobs it ran
+  jobs    Job[]  @relation("RanOn")
+  /// Verification jobs prepared for it
+  checks  Job[]  @relation("CheckFor")
+
+  @@index([ownerId])
+}
+
+/// A job submitted by a user, or a verification job prepared by the platform.
+enum JobKind {
+  CLIENT
+  CHECK
+}
+
+enum JobStatus {
+  PENDING
+  COMPILING
+  COMPILE_FAILED
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+  TIMED_OUT
+}
+
+model Job {
+  id             String    @id @default(uuid())
+  name           String
+  sourceCode     String
+  status         JobStatus @default(PENDING)
+  timeoutSeconds Int       @default(60)
+
+  kind           JobKind   @default(CLIENT)
+
+  /// Who submitted it (verification jobs have no client: the platform makes them)
+  clientId String?
+  client   User?   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  /// Machine that ran (or is running) the job
+  machineId String?
+  machine   Machine? @relation("RanOn", fields: [machineId], references: [id], onDelete: SetNull)
+
+  /// Verification jobs only: the machine being checked, and the answer it must give
+  targetMachineId String?
+  targetMachine   Machine? @relation("CheckFor", fields: [targetMachineId], references: [id], onDelete: Cascade)
+  expectedOutput  String?
+  compilerOutput String?
+  binaryPath     String?
+  attempts   Int     @default(0)
+  stdout     String?
+  stderr     String?
+  exitCode   Int?
+  durationMs Int?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  startedAt  DateTime?
+  finishedAt DateTime?
+
+  /// Credits held when the job was submitted: the most it can cost
+  reservedCredits Int  @default(0)
+  /// What the job finally cost, once finished
+  costCredits     Int?
+  creditMovements CreditMovement[]
+
+  @@index([status])
+  @@index([createdAt])
+  @@index([clientId, createdAt])
+}

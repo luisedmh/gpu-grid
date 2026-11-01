@@ -1,9 +1,28 @@
 # GPU Grid
 
-Plataforma web de cómputo distribuido: los clientes suben código CUDA,
-el servidor lo compila y lo ejecuta en la GPU de un voluntario conectado.
+Distributed GPU computing platform. Clients submit CUDA programs from the browser;
+the platform compiles them and runs them on idle GPUs offered by providers.
 
-Proyecto final de Sistemas y Tecnologías Web (ULL).
+## Repository layout
 
-## Estado
-En desarrollo: prototipo inicial.
+- `backend/` — REST API and job scheduler (Node.js, TypeScript, Express)
+- `docker-compose.yml` — development infrastructure (PostgreSQL, Redis)
+
+## Development setup
+
+Requirements: Node.js (version in `.nvmrc`, use `nvm install`), Docker with Compose.
+
+    npm install                 # root tooling (Prettier)
+    docker compose up -d        # start PostgreSQL and Redis
+    cd backend && npm install
+    npm run dev                 # backend on http://localhost:3000
+    cd frontend && npm install
+    npm run dev                 # web interface on http://localhost:5173
+
+Useful commands:
+
+    npm run format              # format the whole repository
+    docker compose down         # stop infrastructure (data is kept)
+    docker compose down -v      # stop and delete all data
+
+- `frontend/` — web interface (React, TypeScript, Vite, Tailwind)
