@@ -1,4 +1,4 @@
-import { Code2, Cpu, ListChecks, LogOut, type LucideIcon } from 'lucide-react';
+import { Code2, ListChecks, LogOut, Server, type LucideIcon } from 'lucide-react';
 import { NavLink, useNavigate } from 'react-router';
 import type { Role } from '../api/auth.ts';
 import { useAuth } from '../auth/auth-context.ts';
@@ -18,7 +18,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { to: '/new', label: 'New job', icon: Code2, roles: ['CLIENT', 'ADMIN'], end: true },
   { to: '/jobs', label: 'My jobs', icon: ListChecks, roles: ['CLIENT', 'ADMIN'] },
-  { to: '/providers', label: 'Providers', icon: Cpu, roles: ['PROVIDER', 'ADMIN'] },
+  { to: '/machines', label: 'My machines', icon: Server, roles: ['PROVIDER', 'ADMIN'] },
 ];
 
 const ROLE_LABELS: Record<Role, string> = {

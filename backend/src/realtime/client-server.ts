@@ -14,7 +14,7 @@ export type ClientMessage =
 
 /**
  * WebSocket endpoint for logged-in browsers. Each change is pushed only to
- * the people allowed to see it: a job to its owner, providers to providers.
+ * the people allowed to see it: a job to its owner, a machine to its provider.
  * Admins receive everything.
  */
 export function createClientServer(options: { heartbeatMs?: number } = {}): UpgradeHandler {
@@ -36,12 +36,17 @@ export function createClientServer(options: { heartbeatMs?: number } = {}): Upgr
       job,
     }),
   );
-  agentEvents.on('agents-updated', (agents) =>
-    sendTo((user) => user.role === 'ADMIN' || user.role === 'PROVIDER', {
-      type: 'agents-updated',
-      agents,
-    }),
-  );
+  // Each provider only hears about their own machines
+  agentEvents.on('agents-updated', (agents) => {
+    for (const client of wss.clients) {
+      const user = users.get(client);
+      if (!user || client.readyState !== client.OPEN) continue;
+      if (user.role !== 'ADMIN' && user.role !== 'PROVIDER') continue;
+      const visible =
+        user.role === 'ADMIN' ? agents : agents.filter((agent) => agent.ownerId === user.id);
+      client.send(JSON.stringify({ type: 'agents-updated', agents: visible }));
+    }
+  });
 
   return (req, socket, head) => {
     // The browser sends the session cookie with the connection request

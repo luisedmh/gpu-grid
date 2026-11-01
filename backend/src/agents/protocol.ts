@@ -11,10 +11,10 @@ const gpuSchema = z.object({
   computeCapability: z.string().max(10),
 });
 
-/** First message of every agent: who it is and which GPUs it offers. */
+/** First message of every agent: which GPUs it offers. (Its identity comes from its token.) */
 const helloSchema = z.object({
   type: z.literal('hello'),
-  name: z.string().min(1).max(100),
+  name: z.string().max(100).optional(),
   gpus: z.array(gpuSchema).max(16),
 });
 
@@ -37,7 +37,7 @@ export type JobResult = Omit<z.infer<typeof resultSchema>, 'type' | 'jobId'>;
 
 /** Messages the server sends to agents. */
 export type ServerMessage =
-  | { type: 'welcome'; agentId: string }
+  | { type: 'welcome'; machineId: string; name: string }
   | { type: 'job'; jobId: string; timeoutSeconds: number; binaryPath: string };
 
 /** Parses a raw message; returns null if it is not valid JSON or not a known message. */

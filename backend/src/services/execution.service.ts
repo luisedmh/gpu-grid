@@ -6,10 +6,10 @@ import { jobEvents } from '../realtime/job-events.js';
 export const MAX_ATTEMPTS = 3;
 
 /**
- * Takes the oldest QUEUED job and marks it RUNNING, atomically.
+ * Takes the oldest QUEUED job and marks it RUNNING on the given machine, atomically.
  * Returns null when there is nothing to run.
  */
-export async function claimNextJob() {
+export async function claimNextJob(machineId: string) {
   // Another process may claim the same job first; then we simply try the next one
   for (let tries = 0; tries < 5; tries++) {
     const next = await prisma.job.findFirst({
@@ -21,7 +21,12 @@ export async function claimNextJob() {
 
     const claimed = await prisma.job.updateMany({
       where: { id: next.id, status: 'QUEUED' },
-      data: { status: 'RUNNING', startedAt: new Date(), attempts: { increment: 1 } },
+      data: {
+        status: 'RUNNING',
+        machineId,
+        startedAt: new Date(),
+        attempts: { increment: 1 },
+      },
     });
     if (claimed.count === 1) {
       jobEvents.notify(next.id);

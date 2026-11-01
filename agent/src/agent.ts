@@ -9,12 +9,17 @@ import type { AgentMessage, ServerMessage } from './protocol.js';
 import { runBinary } from './runner.js';
 
 if (!config.token) {
-  console.error('AGENT_TOKEN is not set. Add it to agent/.env (see .env.example).');
+  console.error('AGENT_TOKEN is not set. Register this machine in the web (My machines)');
+  console.error('and put its token in agent/.env (see .env.example).');
   process.exit(1);
 }
 
 const wsUrl = `${config.serverUrl.replace(/^http/, 'ws')}/ws/agent`;
 let reconnectAttempts = 0;
+
+/** Close codes the backend uses when this agent must not reconnect. */
+const CLOSE_MACHINE_REMOVED = 4001;
+const CLOSE_REPLACED = 4002;
 
 /** Connects to the backend and keeps reconnecting if the connection drops. */
 function connect() {
@@ -26,8 +31,7 @@ function connect() {
   ws.on('open', async () => {
     reconnectAttempts = 0;
     const gpus = await readGpuInfo();
-    send({ type: 'hello', name: config.name, gpus });
-    console.log(`Connected to ${config.serverUrl} as "${config.name}"`);
+    send({ type: 'hello', gpus });
     gpus.forEach((gpu) =>
       console.log(`  GPU: ${gpu.name} (${gpu.memoryMb} MB, sm ${gpu.computeCapability})`),
     );
@@ -35,12 +39,22 @@ function connect() {
 
   ws.on('message', (data) => {
     const message = JSON.parse(data.toString()) as ServerMessage;
-    if (message.type === 'job') {
+    if (message.type === 'welcome') {
+      console.log(`Connected to ${config.serverUrl} as "${message.name}"`);
+    } else if (message.type === 'job') {
       void runJob(message, send);
     }
   });
 
-  ws.on('close', () => {
+  ws.on('close', (code) => {
+    if (code === CLOSE_MACHINE_REMOVED) {
+      console.error('This machine was removed from the platform. Register it again to rejoin.');
+      process.exit(1);
+    }
+    if (code === CLOSE_REPLACED) {
+      console.error('Another agent connected with this same token. Stopping this one.');
+      process.exit(1);
+    }
     // Wait longer after each failed attempt (1 s, 2 s, 4 s... up to 30 s)
     const delay = Math.min(30_000, 1000 * 2 ** reconnectAttempts);
     reconnectAttempts++;
@@ -51,7 +65,8 @@ function connect() {
   // The backend answered the connection request with an HTTP error instead of accepting it
   ws.on('unexpected-response', (_req, res) => {
     if (res.statusCode === 401) {
-      console.error('The backend rejected the agent token. Check AGENT_TOKEN.');
+      console.error('The backend does not know this token. Check AGENT_TOKEN in agent/.env,');
+      console.error('or register the machine again in the web (My machines).');
       process.exit(1);
     }
     console.error(`Unexpected response from the backend: HTTP ${res.statusCode}`);

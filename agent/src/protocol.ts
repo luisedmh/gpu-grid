@@ -11,7 +11,7 @@ export interface GpuInfo {
 
 /** Messages this agent sends. */
 export type AgentMessage =
-  | { type: 'hello'; name: string; gpus: GpuInfo[] }
+  | { type: 'hello'; gpus: GpuInfo[] }
   | {
       type: 'result';
       jobId: string;
@@ -24,5 +24,5 @@ export type AgentMessage =
 
 /** Messages the backend sends. */
 export type ServerMessage =
-  | { type: 'welcome'; agentId: string }
+  | { type: 'welcome'; machineId: string; name: string }
   | { type: 'job'; jobId: string; timeoutSeconds: number; binaryPath: string };

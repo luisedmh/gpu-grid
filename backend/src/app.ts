@@ -1,20 +1,18 @@
 import express from 'express';
-import type { AgentSummary } from './agents/scheduler.js';
+import type { Scheduler } from './agents/scheduler.js';
 import type { JobsDeps } from './controllers/jobs.controller.js';
 import { authenticate } from './middleware/auth.js';
 import { errorHandler, notFoundHandler } from './middleware/error-handler.js';
 import { createAgentRouter } from './routes/agent.routes.js';
-import { createAgentsRouter } from './routes/agents.routes.js';
 import { authRouter } from './routes/auth.routes.js';
 import { healthRouter } from './routes/health.routes.js';
 import { createJobsRouter } from './routes/jobs.routes.js';
+import { createMachinesRouter } from './routes/machines.routes.js';
 
 /** Everything the app needs from outside. Tests pass fakes; server.ts passes the real ones. */
 export interface AppDeps extends JobsDeps {
-  /** Token that provider agents must present. Without it, agent endpoints are disabled. */
-  agentToken?: string;
-  /** Lists connected providers. Without it, /api/agents is disabled. */
-  listAgents?: () => AgentSummary[];
+  /** Knows which machines are connected right now. */
+  scheduler?: Scheduler;
 }
 
 /**
@@ -34,8 +32,8 @@ export function createApp(deps: AppDeps = {}) {
   app.use('/api/health', healthRouter);
   app.use('/api/auth', authRouter);
   app.use('/api/jobs', createJobsRouter(deps));
-  if (deps.listAgents) app.use('/api/agents', createAgentsRouter(deps.listAgents));
-  if (deps.agentToken) app.use('/api/agent', createAgentRouter(deps.agentToken));
+  app.use('/api/machines', createMachinesRouter(deps.scheduler));
+  app.use('/api/agent', createAgentRouter());
 
   app.use('/api', notFoundHandler);
   app.use(errorHandler);
