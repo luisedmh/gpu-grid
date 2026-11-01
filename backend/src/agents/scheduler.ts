@@ -1,4 +1,5 @@
 import type { GpuInfo, JobResult, ServerMessage } from './protocol.js';
+import { fileSha256 } from '../lib/file-hash.js';
 import { agentEvents } from '../realtime/agent-events.js';
 import {
   claimNextJob,
@@ -147,6 +148,21 @@ export class Scheduler {
             continue;
           }
 
+          let binarySha256: string;
+          try {
+            binarySha256 = await fileSha256(job.binaryPath ?? '');
+          } catch {
+            // Without its compiled program the job cannot run anywhere: it fails, at no cost
+            await saveResult(job.id, {
+              exitCode: null,
+              stdout: '',
+              stderr: 'Internal error: the compiled program was not found. Please submit it again.',
+              durationMs: 0,
+              timedOut: false,
+            });
+            continue;
+          }
+
           agent.currentJobId = job.id;
           this.announce();
           agent.send({
@@ -154,6 +170,7 @@ export class Scheduler {
             jobId: job.id,
             timeoutSeconds: job.timeoutSeconds,
             binaryPath: `/api/agent/jobs/${job.id}/binary`,
+            binarySha256,
           });
         }
       } while (this.dispatchRequested);

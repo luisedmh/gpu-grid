@@ -34,7 +34,7 @@ export async function claimNextJob(machineId: string) {
       jobEvents.notify(next.id);
       return prisma.job.findUniqueOrThrow({
         where: { id: next.id },
-        select: { id: true, timeoutSeconds: true },
+        select: { id: true, timeoutSeconds: true, binaryPath: true },
       });
     }
   }

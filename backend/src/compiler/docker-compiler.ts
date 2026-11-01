@@ -30,8 +30,8 @@ const NVCC_ARCH_FLAGS = [
 const MAX_OUTPUT_CHARS = 100_000;
 
 /**
- * Compiler that runs nvcc in a throwaway container: no network, no GPU,
- * limited memory, CPU and processes, and a time limit.
+ * Compiler that runs nvcc in a throwaway container: no network, no GPU, no
+ * capabilities, a read-only system, limited memory, CPU and processes, and a time limit.
  */
 export function createDockerCompiler(options: { image: string; timeoutMs: number }): Compiler {
   return (workDir) =>
@@ -44,10 +44,19 @@ export function createDockerCompiler(options: { image: string; timeoutMs: number
         '--rm',
         '--name',
         containerName,
+        // The source code is untrusted too: the compiler gets the same kind of jail
         '--network',
         'none',
         '--user',
         user,
+        '--cap-drop',
+        'ALL',
+        '--security-opt',
+        'no-new-privileges',
+        // Only the job folder is writable (for the binary), plus a scratch /tmp for nvcc
+        '--read-only',
+        '--tmpfs',
+        '/tmp:rw,nosuid,size=512m',
         '--memory',
         '2g',
         '--cpus',
