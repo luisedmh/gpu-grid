@@ -22,6 +22,8 @@ export const config = {
   providerSharePercent: Number(process.env.PROVIDER_SHARE_PERCENT) || 80,
   /** Free credits for every new client account. */
   welcomeCredits: Number(process.env.WELCOME_CREDITS) || 5000,
+  /** Docker image providers install the agent from (built by .github/workflows/agent-image.yml). */
+  agentImage: process.env.AGENT_IMAGE ?? 'ghcr.io/luisedmh/gpu-grid-agent:latest',
   /** Send cookies only over HTTPS (enable in production). */
   secureCookies: process.env.NODE_ENV === 'production',
 };

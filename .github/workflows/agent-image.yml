@@ -1,0 +1,45 @@
+# Builds the agent's Docker image and publishes it on GitHub Container Registry,
+# so providers can install the agent with a single `docker run`.
+name: Agent image
+
+on:
+  push:
+    branches: [main]
+    paths: ['agent/**', '.github/workflows/agent-image.yml']
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Image tags: "latest" from main, and the version (e.g. 0.2.0) from tags like v0.2.0
+      - name: Work out image names
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/gpu-grid-agent
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=semver,pattern={{version}}
+
+      - name: Build and publish
+        uses: docker/build-push-action@v6
+        with:
+          context: agent
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
