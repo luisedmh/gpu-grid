@@ -31,7 +31,9 @@ export function useJobList() {
       pending = setTimeout(load, 200);
     };
 
-    const unsubscribe = realtime.subscribe(scheduleLoad);
+    const unsubscribe = realtime.subscribe((message) => {
+      if (message.type === 'job-updated') scheduleLoad();
+    });
     // After a reconnection, reload: updates sent while offline were missed
     const stopStatus = realtime.onStatusChange((status) => {
       if (status === 'online') void load();
