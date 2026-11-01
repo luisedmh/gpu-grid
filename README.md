@@ -16,9 +16,13 @@ Requirements: Node.js (version in `.nvmrc`, use `nvm install`), Docker with Comp
     docker compose up -d        # start PostgreSQL and Redis
     cd backend && npm install
     npm run dev                 # backend on http://localhost:3000
+    cd frontend && npm install
+    npm run dev                 # web interface on http://localhost:5173
 
 Useful commands:
 
     npm run format              # format the whole repository
     docker compose down         # stop infrastructure (data is kept)
     docker compose down -v      # stop and delete all data
+
+- `frontend/` — web interface (React, TypeScript, Vite, Tailwind)
